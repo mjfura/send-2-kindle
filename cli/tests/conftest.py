@@ -7,6 +7,7 @@ import pytest
 
 from send_2_kindle import config
 from send_2_kindle.config import Settings
+from tests.fakes import FakeSMTPServer
 
 
 @pytest.fixture(autouse=True)
@@ -29,3 +30,10 @@ def valid_env(monkeypatch: pytest.MonkeyPatch) -> None:
 @pytest.fixture
 def settings(valid_env: None) -> Settings:
     return config.load_settings()
+
+
+@pytest.fixture
+def fake_smtp(monkeypatch: pytest.MonkeyPatch) -> FakeSMTPServer:
+    server = FakeSMTPServer()
+    server.install(monkeypatch)
+    return server

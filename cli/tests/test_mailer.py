@@ -1,10 +1,13 @@
 import mimetypes
+import smtplib
 from pathlib import Path
 
 import pytest
 
-from send_2_kindle.config import Settings
-from send_2_kindle.mailer import build_message
+from send_2_kindle.config import Settings, load_settings
+from send_2_kindle.errors import SendError, SmtpAuthError, SmtpConnectionError
+from send_2_kindle.mailer import KindleMailer, build_message
+from tests.fakes import FakeSMTPServer
 
 
 def _file(directory: Path, name: str, content: bytes = b"data") -> Path:
@@ -58,3 +61,105 @@ def test_build_message_keeps_non_ascii_file_name(settings: Settings, tmp_path: P
     attachment = next(iter(message.iter_attachments()))
     assert attachment.get_filename() == name
     assert message.as_bytes()  # serializes without UnicodeEncodeError
+
+
+def test_starttls_session_sends_and_quits(
+    settings: Settings, fake_smtp: FakeSMTPServer, tmp_path: Path
+) -> None:
+    with KindleMailer(settings) as mailer:
+        mailer.send(_file(tmp_path, "book.pdf"))
+    assert fake_smtp.calls == [
+        "connect:smtp:smtp.gmail.com:587:30.0",
+        "starttls",
+        "login:me@gmail.com:app-password",
+        "send:book.pdf",
+        "quit",
+    ]
+    assert [str(m["Subject"]) for m in fake_smtp.sent] == ["book.pdf"]
+
+
+@pytest.mark.usefixtures("valid_env")
+def test_ssl_session_skips_starttls(
+    fake_smtp: FakeSMTPServer, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("S2K_SMTP_SECURITY", "ssl")
+    monkeypatch.setenv("S2K_SMTP_PORT", "465")
+    with KindleMailer(load_settings()):
+        pass
+    assert fake_smtp.calls[0] == "connect:ssl:smtp.gmail.com:465:30.0"
+    assert "starttls" not in fake_smtp.calls
+
+
+def test_connection_failure_raises_connection_error(
+    settings: Settings, fake_smtp: FakeSMTPServer
+) -> None:
+    fake_smtp.connect_error = ConnectionRefusedError("refused")
+    with pytest.raises(SmtpConnectionError, match=r"smtp\.gmail\.com:587"), KindleMailer(settings):
+        pass
+
+
+def test_gmail_auth_failure_mentions_app_password(
+    settings: Settings, fake_smtp: FakeSMTPServer
+) -> None:
+    fake_smtp.login_error = smtplib.SMTPAuthenticationError(535, b"bad credentials")
+    with pytest.raises(SmtpAuthError, match="app password"), KindleMailer(settings):
+        pass
+    assert "close" in fake_smtp.calls
+
+
+@pytest.mark.usefixtures("valid_env")
+def test_other_provider_auth_failure_has_no_gmail_hint(
+    fake_smtp: FakeSMTPServer, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("S2K_SMTP_HOST", "smtp.example.com")
+    fake_smtp.login_error = smtplib.SMTPAuthenticationError(535, b"bad credentials")
+    with pytest.raises(SmtpAuthError) as exc_info, KindleMailer(load_settings()):
+        pass
+    assert "app password" not in str(exc_info.value)
+
+
+def test_recipient_refused_is_a_send_error(
+    settings: Settings, fake_smtp: FakeSMTPServer, tmp_path: Path
+) -> None:
+    fake_smtp.send_errors["book.pdf"] = smtplib.SMTPRecipientsRefused(
+        {"reader@kindle.com": (550, b"no such user")}
+    )
+    with KindleMailer(settings) as mailer, pytest.raises(SendError, match="550 no such user"):
+        mailer.send(_file(tmp_path, "book.pdf"))
+
+
+def test_rejected_message_is_a_send_error(
+    settings: Settings, fake_smtp: FakeSMTPServer, tmp_path: Path
+) -> None:
+    fake_smtp.send_errors["book.pdf"] = smtplib.SMTPDataError(552, b"message too large")
+    with KindleMailer(settings) as mailer, pytest.raises(SendError, match="552 message too large"):
+        mailer.send(_file(tmp_path, "book.pdf"))
+
+
+def test_disconnect_during_send_is_a_connection_error(
+    settings: Settings, fake_smtp: FakeSMTPServer, tmp_path: Path
+) -> None:
+    fake_smtp.send_errors["book.pdf"] = smtplib.SMTPServerDisconnected("gone")
+    with KindleMailer(settings) as mailer, pytest.raises(SmtpConnectionError):
+        mailer.send(_file(tmp_path, "book.pdf"))
+
+
+def test_send_timeout_is_a_connection_error(
+    settings: Settings, fake_smtp: FakeSMTPServer, tmp_path: Path
+) -> None:
+    fake_smtp.send_errors["book.pdf"] = TimeoutError("timed out")
+    with KindleMailer(settings) as mailer, pytest.raises(SmtpConnectionError):
+        mailer.send(_file(tmp_path, "book.pdf"))
+
+
+@pytest.mark.usefixtures("fake_smtp")
+def test_unreadable_file_at_send_time_is_a_send_error(settings: Settings, tmp_path: Path) -> None:
+    with KindleMailer(settings) as mailer, pytest.raises(SendError, match="could not read"):
+        mailer.send(tmp_path / "deleted-after-validation.pdf")
+
+
+def test_send_outside_context_manager_is_a_programming_error(
+    settings: Settings, tmp_path: Path
+) -> None:
+    with pytest.raises(RuntimeError):
+        KindleMailer(settings).send(_file(tmp_path, "book.pdf"))
