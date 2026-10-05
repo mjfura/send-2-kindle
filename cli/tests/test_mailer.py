@@ -163,3 +163,13 @@ def test_send_outside_context_manager_is_a_programming_error(
 ) -> None:
     with pytest.raises(RuntimeError):
         KindleMailer(settings).send(_file(tmp_path, "book.pdf"))
+
+
+def test_non_ascii_credentials_are_an_auth_error(
+    settings: Settings, fake_smtp: FakeSMTPServer
+) -> None:
+    # smtplib encodes credentials as ASCII; a password like "contraseña" must not crash.
+    fake_smtp.login_error = UnicodeEncodeError("ascii", "contraseña", 8, 9, "not ASCII")
+    with pytest.raises(SmtpAuthError, match="ASCII"), KindleMailer(settings):
+        pass
+    assert "close" in fake_smtp.calls

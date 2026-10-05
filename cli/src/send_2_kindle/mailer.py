@@ -80,6 +80,11 @@ class KindleMailer:
         except smtplib.SMTPAuthenticationError as error:
             _close_quietly(smtp)
             raise SmtpAuthError(_auth_failure_message(settings)) from error
+        except UnicodeEncodeError as error:  # smtplib sends credentials as ASCII
+            _close_quietly(smtp)
+            raise SmtpAuthError(
+                "SMTP username and password must contain only ASCII characters"
+            ) from error
         except OSError as error:  # smtplib.SMTPException, timeouts and ssl.SSLError are OSErrors
             _close_quietly(smtp)
             raise SmtpConnectionError(

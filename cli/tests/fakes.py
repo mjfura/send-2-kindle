@@ -10,7 +10,7 @@ import pytest
 @dataclass
 class FakeSMTPServer:
     connect_error: OSError | None = None
-    login_error: OSError | None = None
+    login_error: Exception | None = None
     send_errors: dict[str, OSError] = field(default_factory=dict)  # keyed by Subject
     calls: list[str] = field(default_factory=list)
     sent: list[EmailMessage] = field(default_factory=list)
