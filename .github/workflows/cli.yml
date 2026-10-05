@@ -1,0 +1,67 @@
+# Lint, type-check and test the s2k CLI. Runs on every PR (a required check must always report);
+# the suite itself only runs when cli/ or this workflow changed.
+name: cli
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  cli:
+    name: cli
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Detect changes in cli/
+        id: changes
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          if git diff --name-only "$BASE_SHA...$HEAD_SHA" | grep -qE '^(cli/|\.github/workflows/cli\.yml$)'; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "No changes in cli/; skipping the suite."
+          fi
+
+      - name: Install Poetry
+        if: steps.changes.outputs.run == 'true'
+        run: pipx install poetry==2.1.1
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        if: steps.changes.outputs.run == 'true'
+        with:
+          python-version: "3.13"
+          cache: poetry
+          cache-dependency-path: cli/poetry.lock
+
+      - name: Install dependencies
+        if: steps.changes.outputs.run == 'true'
+        working-directory: cli
+        run: |
+          poetry env use python3.13
+          poetry install --no-interaction
+
+      - name: Lint
+        if: steps.changes.outputs.run == 'true'
+        working-directory: cli
+        run: |
+          poetry run ruff check .
+          poetry run ruff format --check .
+
+      - name: Type check
+        if: steps.changes.outputs.run == 'true'
+        working-directory: cli
+        run: poetry run mypy src tests
+
+      - name: Test
+        if: steps.changes.outputs.run == 'true'
+        working-directory: cli
+        run: poetry run pytest
