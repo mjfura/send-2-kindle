@@ -5,11 +5,15 @@ A .toml manifest is read from [project].version; a .json manifest from its "vers
 """
 
 import json
+import re
 import sys
 import tomllib
 from pathlib import Path
 
 from packaging.version import InvalidVersion, Version
+
+# git-workflow tags: vX.Y.Z or vX.Y.Z-rc.N, numbers without leading zeros.
+TAG_PATTERN = re.compile(r"v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(-rc\.(0|[1-9]\d*))?")
 
 
 def declared_version(path: Path) -> str:
@@ -20,6 +24,8 @@ def declared_version(path: Path) -> str:
 
 def check(tag: str, manifests: list[Path]) -> str | None:
     """Return an error message, or None when every manifest matches the tag."""
+    if not TAG_PATTERN.fullmatch(tag):
+        return f"Tag {tag} is not a valid version: use vX.Y.Z or vX.Y.Z-rc.N"
     try:
         tag_version = Version(tag.removeprefix("v"))
     except InvalidVersion:
