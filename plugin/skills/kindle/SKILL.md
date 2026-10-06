@@ -23,8 +23,11 @@ reading edition, show it, then send it with `s2k`.
    missing, include the profile questions from [kindle-profile.md](references/kindle-profile.md) in step 4.
 4. **Ask only what is still undecided** with `AskUserQuestion` (at most 4 questions per call; ask in
    text if the tool is unavailable). Put your recommendation first with a one-line reason. Skip
-   everything the request or the profile already settles — "send ./books/dune.epub as is" needs no
-   questions.
+   only what the request or the profile already settles — "send ./books/dune.epub as is" needs no
+   questions. The profile supplies defaults (Kindle model, author, cover, language); it never
+   decides *how* to send a document: unless the user already said it, always ask whether to send an
+   existing file as is, as a reading edition or summarized, and in which format — before building
+   anything.
    - *Existing file:* how to send it (reading edition · as is · summarized version) · format (EPUB ·
      PDF · original; see [formats.md](references/formats.md)) · title and author · cover (text cover
      page · none).
