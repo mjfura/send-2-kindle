@@ -41,8 +41,8 @@ terminal. Generated documents are written to a temporary folder, never into your
 
 ## Requirements
 
-Python 3.13+ and `pipx` or `uv` for the CLI (`pipx install s2k-cli`); `s2k:setup` walks you through
-it. Converting `.mobi` files needs Calibre (Claude asks before installing it).
+Python 3.13+ and `pipx` or `uv` for the CLI (`pipx install s2k-cli`), and a Gmail, iCloud Mail or
+other SMTP account to send from; `s2k:setup` walks you through it. Converting `.mobi` files needs Calibre (Claude asks before installing it).
 
 ## Development
 

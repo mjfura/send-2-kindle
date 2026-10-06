@@ -19,4 +19,5 @@
 | PDF over the size limit | smaller PDF | `gs -sDEVICE=pdfwrite -dPDFSETTINGS=/ebook -o "${TMPDIR:-/tmp}/s2k/<name>.pdf" <in>` if Ghostscript is installed; otherwise explain the limit |
 | DOCX | as is | Amazon converts it; build a reading edition only if the user asks |
 
-Limits: 50 MB per file; Gmail refuses messages above about 25 MB, so files above ~18 MB fail with Gmail.
+Limits: 50 MB per file at Amazon; Gmail refuses files above ~18 MB and iCloud Mail above ~14 MB
+(base64 makes attachments ~33 % larger). `s2k send` checks the limit of the configured provider.

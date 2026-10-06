@@ -20,7 +20,7 @@ def _answers(*lines: str) -> str:
 
 
 # kindle, sender, host, port, security, password, "run checks now?"
-NEW_CONFIG = _answers("reader@kindle.com", "me@gmail.com", "", "", "", PASSWORD, PASSWORD, "n")
+NEW_CONFIG = _answers("", "reader@kindle.com", "me@gmail.com", PASSWORD, PASSWORD, "n")
 
 
 @pytest.fixture
@@ -70,7 +70,7 @@ def test_creates_missing_directory_with_private_permissions(
 @pytest.mark.usefixtures("interactive")
 def test_invalid_email_is_asked_again(isolated_env: Path) -> None:
     answers = _answers(
-        "not-an-email", "reader@kindle.com", "me@gmail.com", "", "", "", PASSWORD, PASSWORD, "n"
+        "", "not-an-email", "reader@kindle.com", "me@gmail.com", PASSWORD, PASSWORD, "n"
     )
     result = runner.invoke(app, ["init"], input=answers)
     assert result.exit_code == 0, result.output
@@ -81,7 +81,16 @@ def test_invalid_email_is_asked_again(isolated_env: Path) -> None:
 @pytest.mark.usefixtures("interactive")
 def test_invalid_port_is_asked_again(isolated_env: Path) -> None:
     answers = _answers(
-        "reader@kindle.com", "me@gmail.com", "", "70000", "465", "ssl", PASSWORD, PASSWORD, "n"
+        "other",
+        "reader@kindle.com",
+        "me@gmail.com",
+        "",
+        "70000",
+        "465",
+        "ssl",
+        PASSWORD,
+        PASSWORD,
+        "n",
     )
     result = runner.invoke(app, ["init"], input=answers)
     assert result.exit_code == 0, result.output
@@ -106,7 +115,7 @@ def test_existing_values_are_defaults_and_empty_password_keeps_it(isolated_env: 
         },
     )
     isolated_env.chmod(0o644)
-    result = runner.invoke(app, ["init"], input=_answers("", "", "", "", "", "", "n"))
+    result = runner.invoke(app, ["init"], input=_answers("", "", "", "", "", "", "", "n"))
     assert result.exit_code == 0, result.output
     assert "[old@kindle.com]" in result.output
     settings = load_settings()
@@ -121,7 +130,7 @@ def test_existing_values_are_defaults_and_empty_password_keeps_it(isolated_env: 
 @pytest.mark.usefixtures("interactive")
 def test_password_with_special_characters_round_trips(isolated_env: Path) -> None:
     password = 'p@ss "w0rd" \\ #1 $HOME ${HOME} ${S2K_X}'
-    answers = _answers("reader@kindle.com", "me@gmail.com", "", "", "", password, password, "n")
+    answers = _answers("", "reader@kindle.com", "me@gmail.com", password, password, "n")
     result = runner.invoke(app, ["init"], input=answers)
     assert result.exit_code == 0, result.output
     assert load_settings().smtp_password.get_secret_value() == password
@@ -139,7 +148,7 @@ def test_abort_writes_nothing(isolated_env: Path) -> None:
 def test_running_checks_uses_the_doctor_exit_code(
     isolated_env: Path, fake_smtp: FakeSMTPServer
 ) -> None:
-    answers = _answers("reader@kindle.com", "me@gmail.com", "", "", "", PASSWORD, PASSWORD, "y")
+    answers = _answers("", "reader@kindle.com", "me@gmail.com", PASSWORD, PASSWORD, "y")
     result = runner.invoke(app, ["init"], input=answers)
     assert result.exit_code == 0, result.output
     assert "Logged in as me@gmail.com" in result.output
@@ -167,11 +176,9 @@ def test_unwritable_config_location_is_reported(
 @pytest.mark.usefixtures("interactive")
 def test_mismatched_password_is_asked_again(isolated_env: Path) -> None:
     answers = _answers(
+        "",
         "reader@kindle.com",
         "me@gmail.com",
-        "",
-        "",
-        "",
         "first try",
         "typo",
         PASSWORD,
@@ -195,3 +202,97 @@ def test_write_config_keeps_a_symlinked_config_file(tmp_path: Path) -> None:
     assert link.is_symlink()
     assert "S2K_KINDLE_EMAIL" in real.read_text()
     assert _mode(real) == 0o600
+
+
+@pytest.mark.usefixtures("interactive")
+def test_icloud_preset_fills_the_server_settings(isolated_env: Path) -> None:
+    answers = _answers("icloud", "reader@kindle.com", "me@icloud.com", PASSWORD, PASSWORD, "n")
+    result = runner.invoke(app, ["init"], input=answers)
+    assert result.exit_code == 0, result.output
+    assert "account.apple.com" in result.output
+    assert "SMTP server" not in result.output
+    settings = load_settings()
+    assert settings.smtp_host == "smtp.mail.me.com"
+    assert settings.smtp_port == 587
+    assert settings.smtp_security == "starttls"
+
+
+def _existing(path: Path, host: str, port: str) -> None:
+    wizard.write_config(
+        path,
+        {
+            "S2K_KINDLE_EMAIL": "reader@kindle.com",
+            "S2K_SENDER_EMAIL": "me@example.com",
+            "S2K_SMTP_HOST": host,
+            "S2K_SMTP_PORT": port,
+            "S2K_SMTP_SECURITY": "starttls",
+            "S2K_SMTP_PASSWORD": "secret",
+        },
+    )
+
+
+@pytest.mark.usefixtures("interactive")
+def test_existing_icloud_config_defaults_to_icloud(isolated_env: Path) -> None:
+    _existing(isolated_env, "smtp.mail.me.com", "587")
+    result = runner.invoke(app, ["init"], input=_answers("", "", "", "", "n"))
+    assert result.exit_code == 0, result.output
+    assert "[icloud]" in result.output
+    assert load_settings().smtp_host == "smtp.mail.me.com"
+
+
+@pytest.mark.usefixtures("interactive")
+def test_unknown_existing_host_defaults_to_other(isolated_env: Path) -> None:
+    _existing(isolated_env, "smtp.example.com", "2525")
+    result = runner.invoke(app, ["init"], input=_answers("", "", "", "", "", "", "", "n"))
+    assert result.exit_code == 0, result.output
+    assert "[other]" in result.output
+    assert load_settings().smtp_host == "smtp.example.com"
+
+
+@pytest.mark.usefixtures("interactive")
+def test_provider_answer_is_case_insensitive(isolated_env: Path) -> None:
+    answers = _answers("iCloud", "reader@kindle.com", "me@icloud.com", PASSWORD, PASSWORD, "n")
+    result = runner.invoke(app, ["init"], input=answers)
+    assert result.exit_code == 0, result.output
+    assert load_settings().smtp_host == "smtp.mail.me.com"
+
+
+@pytest.mark.usefixtures("interactive")
+def test_existing_gmail_port_and_security_are_kept(isolated_env: Path) -> None:
+    wizard.write_config(
+        isolated_env,
+        {
+            "S2K_KINDLE_EMAIL": "reader@kindle.com",
+            "S2K_SENDER_EMAIL": "me@gmail.com",
+            "S2K_SMTP_HOST": "smtp.gmail.com",
+            "S2K_SMTP_PORT": "465",
+            "S2K_SMTP_SECURITY": "ssl",
+            "S2K_SMTP_PASSWORD": "secret",
+        },
+    )
+    result = runner.invoke(app, ["init"], input=_answers("", "", "", "", "n"))
+    assert result.exit_code == 0, result.output
+    settings = load_settings()
+    assert (settings.smtp_port, settings.smtp_security) == (465, "ssl")
+
+
+@pytest.mark.usefixtures("interactive")
+def test_username_is_dropped_when_the_provider_changes(isolated_env: Path) -> None:
+    wizard.write_config(
+        isolated_env,
+        {
+            "S2K_KINDLE_EMAIL": "reader@kindle.com",
+            "S2K_SENDER_EMAIL": "me@gmail.com",
+            "S2K_SMTP_HOST": "smtp.gmail.com",
+            "S2K_SMTP_PORT": "587",
+            "S2K_SMTP_SECURITY": "starttls",
+            "S2K_SMTP_PASSWORD": "secret",
+            "S2K_SMTP_USERNAME": "old@gmail.com",
+        },
+    )
+    answers = _answers("icloud", "", "me@icloud.com", "new secret", "new secret", "n")
+    result = runner.invoke(app, ["init"], input=answers)
+    assert result.exit_code == 0, result.output
+    settings = load_settings()
+    assert settings.smtp_username is None
+    assert settings.login_username == "me@icloud.com"

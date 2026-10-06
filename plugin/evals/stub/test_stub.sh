@@ -30,6 +30,8 @@ check "missing is command not found" 127 "command not found" missing --version
 check "doctor ready" 0 "Ready." ready doctor
 check "doctor no-config" 1 "run \`s2k init\`" no-config doctor
 check "doctor auth-fail" 1 "app password" auth-fail doctor
+check "doctor auth-fail-icloud" 1 "app-specific password" auth-fail-icloud doctor
+check "send auth-fail-icloud" 1 "account.apple.com" auth-fail-icloud send books/dune.epub
 check "init is never interactive here" 2 "run it in your own terminal" ready init
 check "send ready" 0 "1 sent, 0 failed" ready send books/dune.epub
 check "send handles a path with spaces and accents" 0 "Cien años de soledad.epub  sent" ready send "books/Cien años de soledad.epub"

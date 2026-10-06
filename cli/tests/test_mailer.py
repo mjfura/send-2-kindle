@@ -217,3 +217,16 @@ def test_ssl_on_port_587_gets_a_hint(
         KindleMailer(load_settings()),
     ):
         pass
+
+
+@pytest.mark.usefixtures("valid_env")
+def test_icloud_auth_failure_mentions_app_specific_password(
+    fake_smtp: FakeSMTPServer, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("S2K_SMTP_HOST", "smtp.mail.me.com")
+    fake_smtp.login_error = smtplib.SMTPAuthenticationError(535, b"bad credentials")
+    with (
+        pytest.raises(SmtpAuthError, match=r"app-specific password.*account\.apple\.com"),
+        KindleMailer(load_settings()),
+    ):
+        pass
