@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 import pytest
@@ -95,5 +96,64 @@ def test_password_is_masked_in_repr() -> None:
     assert "app-password" not in repr(load_settings())
 
 
-def test_env_file_lives_in_the_cli_directory() -> None:
-    assert (config.PROJECT_DIR / "pyproject.toml").is_file()
+def test_config_file_variable_wins(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("S2K_CONFIG_FILE", str(tmp_path / "custom.env"))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "xdg"))
+    assert config.config_file_path() == tmp_path / "custom.env"
+
+
+def test_config_file_variable_expands_home(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("S2K_CONFIG_FILE", "~/s2k.env")
+    assert config.config_file_path() == tmp_path / "home" / "s2k.env"
+
+
+def test_xdg_config_home_is_used(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.delenv("S2K_CONFIG_FILE")
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "xdg"))
+    assert config.config_file_path() == tmp_path / "xdg" / "s2k" / "config.env"
+
+
+def test_default_is_dot_config_in_home(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.delenv("S2K_CONFIG_FILE")
+    assert config.config_file_path() == tmp_path / "home" / ".config" / "s2k" / "config.env"
+
+
+def test_empty_xdg_config_home_falls_back_to_home(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.delenv("S2K_CONFIG_FILE")
+    monkeypatch.setenv("XDG_CONFIG_HOME", "")
+    assert config.config_file_path() == tmp_path / "home" / ".config" / "s2k" / "config.env"
+
+
+def test_load_settings_reads_the_resolved_file(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.delenv("S2K_CONFIG_FILE")
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "xdg"))
+    path = tmp_path / "xdg" / "s2k" / "config.env"
+    path.parent.mkdir(parents=True)
+    path.write_text(REQUIRED_FILE_LINES + "S2K_SMTP_PASSWORD=secret\n")
+    assert load_settings().smtp_password.get_secret_value() == "secret"
+
+
+def test_dot_env_in_working_directory_is_ignored(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    workdir = tmp_path / "project"
+    workdir.mkdir()
+    (workdir / ".env").write_text(REQUIRED_FILE_LINES + "S2K_SMTP_PASSWORD=secret\n")
+    monkeypatch.chdir(workdir)
+    with pytest.raises(ConfigError):
+        load_settings()
+
+
+@pytest.mark.skipif(hasattr(os, "geteuid") and os.geteuid() == 0, reason="root can read any file")
+def test_unreadable_config_file_is_a_config_error(isolated_env: Path) -> None:
+    isolated_env.write_text(REQUIRED_FILE_LINES + "S2K_SMTP_PASSWORD=secret\n")
+    isolated_env.chmod(0)
+    try:
+        with pytest.raises(ConfigError, match="Cannot read"):
+            load_settings()
+    finally:
+        isolated_env.chmod(0o600)

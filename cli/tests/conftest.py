@@ -1,4 +1,4 @@
-"""Shared fixtures. Tests never read the real cli/.env or S2K_* shell variables."""
+"""Shared fixtures. Tests never read the real user config or S2K_* shell variables."""
 
 import os
 from pathlib import Path
@@ -15,9 +15,11 @@ def isolated_env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
     for name in list(os.environ):
         if name.startswith("S2K_"):
             monkeypatch.delenv(name)
-    env_file = tmp_path / "test.env"
-    monkeypatch.setattr(config, "ENV_FILE", env_file)
-    return env_file
+    monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    config_file = tmp_path / "config.env"
+    monkeypatch.setenv("S2K_CONFIG_FILE", str(config_file))
+    return config_file
 
 
 @pytest.fixture
