@@ -18,6 +18,7 @@ from send_2_kindle.errors import (
 )
 from send_2_kindle.mailer import KindleMailer
 from send_2_kindle.validation import validate_file
+from send_2_kindle.wizard import run_wizard
 
 AMAZON_NOTE = (
     "Note: Amazon may still reject a sent file (e.g. sender not approved); it will email you if so."
@@ -98,6 +99,12 @@ def send(
 def doctor() -> None:
     """Check that s2k is configured and can log in to your SMTP server (sends nothing)."""
     raise typer.Exit(code=report(run_checks()))
+
+
+@app.command()
+def init() -> None:
+    """Interactive setup that writes your config file. Run it in your own terminal."""
+    raise typer.Exit(code=run_wizard())
 
 
 def _print_report(outcomes: list[Outcome]) -> None:
