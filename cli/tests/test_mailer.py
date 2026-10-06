@@ -173,3 +173,12 @@ def test_non_ascii_credentials_are_an_auth_error(
     with pytest.raises(SmtpAuthError, match="ASCII"), KindleMailer(settings):
         pass
     assert "close" in fake_smtp.calls
+
+
+def test_server_without_required_feature_is_reported_as_such(
+    settings: Settings, fake_smtp: FakeSMTPServer
+) -> None:
+    fake_smtp.login_error = smtplib.SMTPNotSupportedError("SMTP AUTH extension not supported")
+    with pytest.raises(SmtpConnectionError, match="does not support"), KindleMailer(settings):
+        pass
+    assert "close" in fake_smtp.calls

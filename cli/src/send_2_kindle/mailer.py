@@ -85,6 +85,12 @@ class KindleMailer:
             raise SmtpAuthError(
                 "SMTP username and password must contain only ASCII characters"
             ) from error
+        except smtplib.SMTPNotSupportedError as error:  # e.g. no STARTTLS or no AUTH
+            _close_quietly(smtp)
+            raise SmtpConnectionError(
+                f"{settings.smtp_host}:{settings.smtp_port} does not support a required feature "
+                f"(check S2K_SMTP_SECURITY and S2K_SMTP_PORT): {error}"
+            ) from error
         except OSError as error:  # smtplib.SMTPException, timeouts and ssl.SSLError are OSErrors
             _close_quietly(smtp)
             raise SmtpConnectionError(

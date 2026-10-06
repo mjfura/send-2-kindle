@@ -1,6 +1,7 @@
 """Local checks that decide whether a file can be sent to Kindle."""
 
 import os
+import stat
 from pathlib import Path
 
 from send_2_kindle import constants
@@ -13,9 +14,14 @@ def _megabytes(size: int) -> float:
 
 def validate_file(path: Path) -> None:
     """Raise FileValidationError with a user-facing reason if ``path`` cannot be sent."""
-    if not path.exists():
-        raise FileValidationError("file not found")
-    if not path.is_file():
+    # stat() tells "missing" apart from "can't reach it" (Path.exists() reports both as False).
+    try:
+        info = path.stat()
+    except FileNotFoundError:
+        raise FileValidationError("file not found") from None
+    except PermissionError:
+        raise FileValidationError("file is not readable") from None
+    if not stat.S_ISREG(info.st_mode):
         raise FileValidationError("not a regular file")
 
     extension = path.suffix.lower()
@@ -25,7 +31,7 @@ def validate_file(path: Path) -> None:
             f"unsupported extension '{extension or '(none)'}'; allowed: {allowed}"
         )
 
-    size = path.stat().st_size
+    size = info.st_size
     if size == 0:
         raise FileValidationError("file is empty")
     if not os.access(path, os.R_OK):
