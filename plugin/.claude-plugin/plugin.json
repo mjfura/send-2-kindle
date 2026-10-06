@@ -1,7 +1,7 @@
 {
   "name": "s2k",
   "description": "Send files, plans, specs, reports and summaries to your Kindle as pleasant reading editions, and set up the s2k CLI.",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "author": { "name": "Marco Fura", "url": "https://github.com/mjfura" },
   "homepage": "https://github.com/mjfura/send-2-kindle",
   "repository": "https://github.com/mjfura/send-2-kindle",
