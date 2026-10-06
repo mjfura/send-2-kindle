@@ -12,7 +12,10 @@ for py in /opt/homebrew/bin/python3 /usr/local/bin/python3 /usr/bin/python3; do
   if [ -x "$py" ]; then ln -sf "$py" bin/python3; break; fi
 done
 mkdir -p books downloads docs
-printf 'Dune\n' > books/dune.epub
+# A real (tiny) EPUB, so agents that inspect the file see a valid book.
+printf '<h1>Dune</h1><p>A desert planet.</p>\n' > dune-chapter.html
+./bin/python3 ./bin/make_epub.py --title Dune --author 'Frank Herbert' --output books/dune.epub dune-chapter.html > /dev/null
+rm dune-chapter.html
 printf 'Old\n' > books/old.mobi
 for name in a b c; do printf '%%PDF-1.7 %s\n' "$name" > "downloads/$name.pdf"; done
 cat > docs/plan.md <<'PLAN'
