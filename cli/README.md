@@ -14,7 +14,7 @@ each (your email provider may allow less: Gmail rejects files above roughly 18 M
 Requires Python 3.13+.
 
 ```bash
-pipx install send-2-kindle       # or: uv tool install send-2-kindle
+pipx install s2k-cli       # or: uv tool install s2k-cli
 ```
 
 ## Set up

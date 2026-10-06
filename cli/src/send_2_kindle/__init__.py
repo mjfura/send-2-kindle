@@ -2,9 +2,9 @@
 
 from importlib.metadata import version
 
-DISTRIBUTION_NAME = "send-2-kindle"
+DISTRIBUTION_NAME = "s2k-cli"
 
 
 def installed_version() -> str:
-    """Version of the installed send-2-kindle distribution (single source: pyproject.toml)."""
+    """Version of the installed s2k-cli distribution (single source: pyproject.toml)."""
     return version(DISTRIBUTION_NAME)

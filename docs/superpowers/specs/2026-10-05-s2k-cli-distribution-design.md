@@ -11,7 +11,7 @@ Make `s2k` installable and usable by anyone, as the foundation for a Claude Code
 skills teach agents to set up and use it (sub-project 2, separate spec).
 
 Success:
-- Any user can run `pipx install send-2-kindle` (or `uv tool install send-2-kindle`), then
+- Any user can run `pipx install s2k-cli` (or `uv tool install s2k-cli`), then
   `s2k init` to configure it, `s2k doctor` to confirm it is ready, and `s2k send FILE...`.
 - An agent can tell, from `s2k --version` and `s2k doctor` (exit code + text), whether the CLI is
   installed, configured and able to log in — without ever seeing the user's password.
@@ -116,14 +116,15 @@ Interactive wizard; writes the config file returned by `config_file_path()`.
 
 ## 7. Packaging
 
-- PyPI distribution name `send-2-kindle` (verified free on 2026-10-05); script `s2k`.
+- PyPI distribution name `s2k-cli`; script `s2k`. (Amended 2026-10-05: `send-2-kindle` was
+  rejected by PyPI as too similar to the existing `send2kindle` project.)
 - `pyproject.toml` metadata: `license = "MIT"`, `license-files = ["LICENSE"]`, `readme =
   "README.md"`, `keywords`, `classifiers` (Python 3.13, OS Independent, Environment :: Console,
   Topic :: Communications :: Email), `[project.urls]` Homepage/Repository/Issues.
 - `LICENSE` (MIT, "Copyright (c) 2026 Marco Fura") at the repo root and copied as `cli/LICENSE`
   so the sdist/wheel include it (Poetry packages files under `cli/` only).
 - Single version source: `pyproject.toml`. `s2k --version` reads
-  `importlib.metadata.version("send-2-kindle")`; the hard-coded `__version__` is removed.
+  `importlib.metadata.version("s2k-cli")`; the hard-coded `__version__` is removed.
 - `cli/README.md` becomes the PyPI page, written for end users: install, `s2k init`, `s2k doctor`,
   `s2k send`, configuration reference, troubleshooting. Development notes move to
   `cli/CONTRIBUTING.md`.
@@ -142,7 +143,7 @@ New `.github/workflows/release.yml`, triggered by `push` of tags `v*`:
 
 - Permissions: workflow default `contents: read`; `publish` adds `id-token: write`;
   `github-release` adds `contents: write`.
-- Pre-releases (`-rc.N`) are published to PyPI as pre-releases; `pipx install send-2-kindle`
+- Pre-releases (`-rc.N`) are published to PyPI as pre-releases; `pipx install s2k-cli`
   ignores them unless asked.
 - Third-party actions pinned to full commit SHAs.
 - A failure before `publish` publishes nothing. PyPI never accepts the same version twice; a bad
@@ -153,7 +154,7 @@ run `s2k --version` — packaging errors surface in the PR, not at release time.
 
 `docs/releasing.md` documents:
 1. One-time setup: PyPI account with 2FA; *Publishing → Add a pending publisher* with project
-   `send-2-kindle`, owner `mjfura`, repository `send-2-kindle`, workflow `release.yml`,
+   `s2k-cli`, owner `mjfura`, repository `send-2-kindle`, workflow `release.yml`,
    environment `pypi`; GitHub environment `pypi` (created by the implementation via `gh api`).
 2. Each release: release PR bumping the version (`chore(release): vX.Y.Z`), merge, annotated tag
    on `main`, push the tag, watch the workflow.
@@ -192,5 +193,5 @@ running `verify`'s version comparison locally.
 1. Merge this work (version stays `0.1.0`).
 2. Owner completes the one-time PyPI setup (`docs/releasing.md`).
 3. Tag `v0.1.0` on `main` → first publication.
-4. Smoke test from a clean environment: `pipx install send-2-kindle`, `s2k doctor`, `s2k send`.
+4. Smoke test from a clean environment: `pipx install s2k-cli`, `s2k doctor`, `s2k send`.
 5. Start sub-project 2 (plugin) against the published CLI.

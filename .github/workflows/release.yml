@@ -1,4 +1,4 @@
-# Publish send-2-kindle to PyPI and create a GitHub Release when a vX.Y.Z tag is pushed.
+# Publish s2k-cli to PyPI and create a GitHub Release when a vX.Y.Z tag is pushed.
 name: release
 
 on:
@@ -74,7 +74,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: pypi
-      url: https://pypi.org/project/send-2-kindle/
+      url: https://pypi.org/project/s2k-cli/
     permissions:
       id-token: write
     steps:

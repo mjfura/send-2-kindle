@@ -1,19 +1,22 @@
-# Releasing send-2-kindle
+# Releasing s2k-cli
 
 One version for the whole repository. A `vX.Y.Z` tag on `main` publishes the CLI to PyPI
-(`send-2-kindle`) and creates a GitHub Release (`.github/workflows/release.yml`).
+(`s2k-cli`) and creates a GitHub Release (`.github/workflows/release.yml`).
 
 ## One-time setup (owner)
 
 1. Create a PyPI account at <https://pypi.org/account/register/> and enable 2FA.
 2. *Your account → Publishing → Add a new pending publisher* (GitHub tab):
-   - PyPI project name: `send-2-kindle`
+   - PyPI project name: `s2k-cli`
    - Owner: `mjfura` · Repository: `send-2-kindle`
    - Workflow name: `release.yml` · Environment name: `pypi`
 3. The GitHub environment `pypi` already exists in the repository settings (*Settings →
    Environments*). Optionally add yourself as a required reviewer to approve each publication.
 
 No tokens or passwords are stored anywhere: PyPI trusts this workflow through OIDC.
+
+The package is `s2k-cli`, not `send-2-kindle`: PyPI rejects names that match an existing project
+once `-`, `_` and `.` are removed, and `send2kindle` already exists.
 
 ## Each release
 
@@ -27,7 +30,7 @@ No tokens or passwords are stored anywhere: PyPI trusts this workflow through OI
    git push origin vX.Y.Z
    ```
 4. Watch it: `gh run watch $(gh run list --workflow release.yml --limit 1 --json databaseId --jq '.[0].databaseId')`.
-5. Smoke test from a clean environment: `pipx install send-2-kindle==X.Y.Z && s2k --version`.
+5. Smoke test from a clean environment: `pipx install s2k-cli==X.Y.Z && s2k --version`.
 
 If any job before `publish` fails, nothing is published: fix on `main` and tag again with the next
 version (PyPI never accepts the same version twice; tags are protected from being moved).
