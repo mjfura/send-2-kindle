@@ -1,58 +1,77 @@
 # s2k — send files to your Kindle
 
-`s2k` emails local files to your Kindle using Amazon's Send to Kindle service, one email per file.
+`s2k` emails documents to your Kindle through Amazon's Send to Kindle service, one email per file.
 
 ```bash
-s2k book.epub paper.pdf notes.docx
+s2k send book.epub paper.pdf notes.docx
 ```
 
 Supported: `.pdf .epub .doc .docx .txt .rtf .html .htm .jpg .jpeg .png .gif .bmp`, up to 50 MB
 each (your email provider may allow less: Gmail rejects files above roughly 18 MB).
 
-## Setup
+## Install
 
-1. **Find your Kindle address and approve your sender.** In Amazon, go to *Manage Your Content and
-   Devices → Preferences → Personal Document Settings*. Copy your `@kindle.com` address and add the
-   email you will send from to the *Approved Personal Document E-mail List*.
-2. **Gmail only: create an app password.** It requires 2-Step Verification:
-   <https://myaccount.google.com/apppasswords>. Other providers: use your SMTP credentials and set
-   `S2K_SMTP_HOST`, `S2K_SMTP_PORT` and `S2K_SMTP_SECURITY`.
-3. **Install** (Python 3.13 and Poetry 2 required):
+Requires Python 3.13+.
+
+```bash
+pipx install send-2-kindle       # or: uv tool install send-2-kindle
+```
+
+## Set up
+
+1. **In Amazon** (*Manage Your Content and Devices → Preferences → Personal Document Settings*):
+   copy your `@kindle.com` address and add the email you will send from to the *Approved Personal
+   Document E-mail List*.
+2. **Gmail users:** create an app password at <https://myaccount.google.com/apppasswords>
+   (requires 2-Step Verification). Your normal Gmail password will not work.
+3. Run the wizard in your terminal — it asks for the values, hides the password, saves them to
+   `~/.config/s2k/config.env` with private permissions and offers to test the login:
    ```bash
-   cd cli
-   poetry env use python3.13
-   poetry install
+   s2k init
    ```
-4. **Configure:** `cp .env.example .env` and fill in the values. `cli/.env` is git-ignored.
+4. Check that everything is ready at any time (sends nothing):
+   ```bash
+   s2k doctor
+   ```
 
 ## Usage
 
 ```bash
-poetry run s2k FILE...          # from cli/
-source cli/.venv/bin/activate   # or activate once and run `s2k` from anywhere
+s2k send FILE...    # send files, one email each
+s2k doctor          # check configuration and SMTP login
+s2k init            # create or update the configuration
+s2k --version
 ```
 
-Exit codes: `0` every file was sent · `1` at least one file was not sent · `2` invalid
-configuration or usage.
+Exit codes: `0` success · `1` something failed (see the report) · `2` invalid configuration or usage.
 
-"Sent" means your SMTP server accepted the email. If Amazon rejects it (for example, the sender is
-not approved), Amazon emails you.
+"Sent" means your email provider accepted the message. If Amazon rejects it (for example, the
+sender is not approved), Amazon emails you.
 
-## Development
+## Configuration
 
-```bash
-cd cli
-poetry run pytest                 # tests (never send real email)
-poetry run ruff check .           # lint
-poetry run ruff format .          # format
-poetry run mypy src tests         # type check
-```
+Read from, highest priority first: environment variables → the file in `S2K_CONFIG_FILE` →
+`$XDG_CONFIG_HOME/s2k/config.env` → `~/.config/s2k/config.env`.
 
-### Manual smoke test
+| Variable | Required | Default |
+|---|---|---|
+| `S2K_KINDLE_EMAIL` | yes | — |
+| `S2K_SENDER_EMAIL` | yes | — |
+| `S2K_SMTP_PASSWORD` | yes | — |
+| `S2K_SMTP_HOST` | no | `smtp.gmail.com` |
+| `S2K_SMTP_PORT` | no | `587` |
+| `S2K_SMTP_SECURITY` | no | `starttls` (`ssl` for port 465) |
+| `S2K_SMTP_USERNAME` | no | the sender address |
 
-With a real `cli/.env`:
-```bash
-echo "s2k smoke test" > /tmp/s2k-smoke.txt
-poetry run s2k /tmp/s2k-smoke.txt
-```
-The document should appear in your Kindle library within a few minutes.
+## Troubleshooting
+
+| `s2k doctor` says | Do this |
+|---|---|
+| No configuration found | Run `s2k init` |
+| authentication failed … app password | Create a Gmail app password and run `s2k init` again |
+| could not connect | Check `S2K_SMTP_HOST`, `S2K_SMTP_PORT` and `S2K_SMTP_SECURITY` |
+| Config file is readable by other users | `chmod 600 ~/.config/s2k/config.env` |
+
+## License
+
+MIT
