@@ -12,3 +12,9 @@ branch, commit, push, PR, merge, tag or release operation. Key rules:
 - Releases are annotated SemVer tags on `main` (`vX.Y.Z`, candidates `vX.Y.Z-rc.N`).
 - No AI attribution in commits or PRs (no Co-Authored-By, no session links).
 <!-- git-workflow:end -->
+
+## CLI (`cli/`)
+
+Python 3.13 + Poetry project; virtualenv in `cli/.venv`. Design: `docs/superpowers/specs/2026-10-05-s2k-cli-design.md`.
+Run from `cli/` before every commit: `poetry run ruff check . && poetry run ruff format --check . && poetry run mypy src tests && poetry run pytest`.
+Tests must never send real email or read the real `cli/.env`.
