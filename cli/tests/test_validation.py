@@ -57,6 +57,20 @@ def test_rejects_unreadable_file(tmp_path: Path) -> None:
         path.chmod(0o600)
 
 
+@pytest.mark.skipif(hasattr(os, "geteuid") and os.geteuid() == 0, reason="root can read any file")
+def test_file_in_inaccessible_directory_is_not_readable(tmp_path: Path) -> None:
+    # Path.exists() is False here, but the file exists: "file not found" would mislead.
+    directory = tmp_path / "locked"
+    directory.mkdir()
+    path = _file(directory, "book.pdf")
+    directory.chmod(0)
+    try:
+        with pytest.raises(FileValidationError, match="file is not readable"):
+            validate_file(path)
+    finally:
+        directory.chmod(0o700)
+
+
 def test_accepts_file_exactly_at_size_limit(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
