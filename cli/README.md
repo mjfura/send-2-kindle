@@ -7,7 +7,7 @@ s2k send book.epub paper.pdf notes.docx
 ```
 
 Supported: `.pdf .epub .doc .docx .txt .rtf .html .htm .jpg .jpeg .png .gif .bmp`, up to 50 MB
-each (your email provider may allow less: Gmail rejects files above roughly 18 MB).
+each (your email provider may allow less: Gmail about 18 MB, iCloud Mail about 14 MB).
 
 ## Install
 
@@ -22,8 +22,13 @@ pipx install s2k-cli       # or: uv tool install s2k-cli
 1. **In Amazon** (*Manage Your Content and Devices → Preferences → Personal Document Settings*):
    copy your `@kindle.com` address and add the email you will send from to the *Approved Personal
    Document E-mail List*.
-2. **Gmail users:** create an app password at <https://myaccount.google.com/apppasswords>
-   (requires 2-Step Verification). Your normal Gmail password will not work.
+2. **Create the password your provider requires** — your normal password will not work:
+
+   | Provider | Password | Server (filled in by `s2k init`) |
+   |---|---|---|
+   | Gmail | [App password](https://myaccount.google.com/apppasswords) (needs 2-Step Verification) | `smtp.gmail.com`, 587, STARTTLS |
+   | iCloud Mail | App-specific password at [account.apple.com](https://account.apple.com) → Sign-In and Security (needs two-factor authentication); send from your full `@icloud.com` address | `smtp.mail.me.com`, 587, STARTTLS |
+   | Other | Your provider's SMTP password | you type it |
 3. Run the wizard in your terminal — it asks for the values, hides the password, saves them to
    `~/.config/s2k/config.env` with private permissions and offers to test the login:
    ```bash
@@ -44,6 +49,9 @@ s2k --version
 ```
 
 Exit codes: `0` success · `1` something failed (see the report) · `2` invalid configuration or usage.
+
+Files in iCloud Drive that are not downloaded yet ("Optimize Mac Storage") are downloaded
+automatically when sent, so you need a connection.
 
 "Sent" means your email provider accepted the message. If Amazon rejects it (for example, the
 sender is not approved), Amazon emails you.

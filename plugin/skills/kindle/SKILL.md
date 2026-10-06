@@ -56,5 +56,8 @@ reading edition, show it, then send it with `s2k`.
 - Never send anything the user did not name or confirm. Never retry a failed send on your own:
   duplicates land in the library.
 - Send to Kindle accepts `.pdf .epub .doc .docx .txt .rtf .html .htm .jpg .jpeg .png .gif .bmp`, up
-  to 50 MB per file (Gmail: about 18 MB), not empty. Convert `.mobi`/`.azw3` first.
+  to 50 MB per file (Gmail: about 18 MB, iCloud Mail: about 14 MB), not empty. Convert
+  `.mobi`/`.azw3` first.
+- Files in iCloud Drive that are not downloaded are downloaded automatically when sent (needs a
+  connection); warn the user before sending many or large ones.
 - Never read the s2k config file or ask for passwords — configuration belongs to `s2k:setup`.

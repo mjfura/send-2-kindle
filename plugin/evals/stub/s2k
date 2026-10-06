@@ -11,7 +11,12 @@ fi
 version=0.1.0
 [ "$scenario" = old ] && version=0.0.9
 note="ℹ Amazon cannot be checked without sending. To confirm end to end: s2k send <small-file.txt>"
+host=smtp.gmail.com sender=reader@gmail.com
 auth_error="authentication failed for reader@gmail.com on smtp.gmail.com. Gmail requires an app password, not your account password: https://myaccount.google.com/apppasswords"
+if [ "$scenario" = auth-fail-icloud ]; then
+  host=smtp.mail.me.com sender=reader@icloud.com
+  auth_error="authentication failed for reader@icloud.com on smtp.mail.me.com. iCloud requires an app-specific password, not your account password: https://account.apple.com"
+fi
 
 doctor() {
   echo "✓ s2k $version (Python 3.13.2)"
@@ -25,15 +30,15 @@ doctor() {
     return 1
   fi
   echo "✓ Config file: ~/.config/s2k/config.env"
-  echo "✓ Settings valid (sender reader@gmail.com → kindle reader@kindle.com)"
-  echo "✓ Connected to smtp.gmail.com:587 (STARTTLS)"
-  if [ "$scenario" = auth-fail ]; then
+  echo "✓ Settings valid (sender $sender → kindle reader@kindle.com)"
+  echo "✓ Connected to $host:587 (STARTTLS)"
+  if [ "$scenario" = auth-fail ] || [ "$scenario" = auth-fail-icloud ]; then
     echo "✗ $auth_error"
     echo "$note"
     echo "Not ready: 1 problem(s)."
     return 1
   fi
-  echo "✓ Logged in as reader@gmail.com"
+  echo "✓ Logged in as $sender"
   echo "$note"
   echo "Ready."
   return 0
@@ -67,13 +72,13 @@ send() {
     echo "  S2K_SMTP_PASSWORD: is required" >&2
     return 2
   fi
-  [ "$scenario" = auth-fail ] && echo "Error: $auth_error" >&2
+  case "$scenario" in auth-fail|auth-fail-icloud) echo "Error: $auth_error" >&2 ;; esac
   sent=0 failed=0
   for file in "$@"; do
     reason=$(reason_for "$file")
     if [ -n "$reason" ]; then
       echo "✗ $file  $reason"; failed=$((failed + 1))
-    elif [ "$scenario" = auth-fail ]; then
+    elif [ "$scenario" = auth-fail ] || [ "$scenario" = auth-fail-icloud ]; then
       echo "✗ $file  not sent"; failed=$((failed + 1))
     else
       echo "✓ $file  sent"; sent=$((sent + 1))

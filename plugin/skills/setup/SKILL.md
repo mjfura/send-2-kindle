@@ -12,6 +12,14 @@ allowed-tools:
 CLI is installed (0.1.0 or newer), the **user** has configured it with `s2k init`, and
 `s2k doctor` ends with `Ready.`
 
+## Providers
+
+| Provider | Server (filled in by `s2k init`) | Password to create |
+|---|---|---|
+| Gmail | `smtp.gmail.com`, 587, starttls | App password: https://myaccount.google.com/apppasswords (2-Step Verification required) |
+| iCloud Mail | `smtp.mail.me.com`, 587, starttls | App-specific password: https://account.apple.com → Sign-In and Security (two-factor authentication required). Send from the full iCloud address (name@icloud.com) |
+| Other | asked by `s2k init` | The provider's SMTP password |
+
 ## Never handle the SMTP password
 
 - Never ask for the email password (for Gmail, the *app password*), and never put it in a command,
@@ -40,7 +48,7 @@ Run `s2k doctor` (never sends email; exit 0 = ready, 1 = at least one ✗).
 | `s2k doctor` shows | What to do |
 |---|---|
 | ✗ No configuration found … run `s2k init` | Check the prerequisites below with the user, ask them to run `s2k init` in their own terminal and to tell you when it is done |
-| ✗ authentication failed … | Gmail needs an app password, not the account password: https://myaccount.google.com/apppasswords (2-Step Verification required); then `s2k init` again |
+| ✗ authentication failed … | The provider needs an app password (Gmail) or an app-specific password (iCloud), not the account password — the error line has the link (see Providers); then `s2k init` again |
 | ✗ could not connect … / does not support a required feature | Wrong server, port or security: `s2k init` again (Gmail: `smtp.gmail.com`, `587`, `starttls`; port 465 needs `ssl`) |
 | ✗ Invalid configuration … `S2K_…` | `s2k init` again, correcting that value |
 | ✗ Cannot read … | Fix that file's owner or permissions (`ls -l <path>`) |
@@ -51,7 +59,7 @@ Prerequisites for `s2k init`:
 1. The Send to Kindle address: Amazon → *Manage Your Content and Devices* → *Preferences* →
    *Personal Document Settings*.
 2. The sender email added to the *Approved Personal Document E-mail List* on that page.
-3. For Gmail, an app password (link above).
+3. For Gmail an app password, for iCloud Mail an app-specific password (see Providers).
 
 ## 3. Repeat `s2k doctor` until it ends with `Ready.`
 
