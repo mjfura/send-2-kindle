@@ -5,6 +5,8 @@ name: cli
 on:
   pull_request:
     branches: [main]
+    # "edited" re-runs change detection when the PR's base branch is changed.
+    types: [opened, synchronize, reopened, edited]
 
 permissions:
   contents: read
