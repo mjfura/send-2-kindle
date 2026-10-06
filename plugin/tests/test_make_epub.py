@@ -111,6 +111,48 @@ class MakeEpubTest(unittest.TestCase):
         for kept in ('href="https://ok.example"', 'href="mailto:me@example.com"', 'href="#part"'):
             self.assertIn(kept, chapter)
 
+    def test_control_characters_are_removed(self) -> None:
+        html = '<h1>T\x01</h1><p>a\x00b\x0bc\x0cd\x1be</p><a href="https://ok.example/\x01x">l</a>'
+        output = self.dir / "ctl.epub"
+        make_epub.build_epub(output, "Ti\x02tle", "Au\x1bthor", [self._chapter("c.html", html)], date="2026-10-05")
+        book = zipfile.ZipFile(output)
+        for name in book.namelist():
+            if name.endswith((".xhtml", ".opf", ".ncx")):
+                ET.fromstring(book.read(name))
+        chapter = book.read("OEBPS/chapter-001.xhtml").decode()
+        self.assertIn("abcde", chapter)
+
+    def test_unclosed_iframe_does_not_swallow_the_rest(self) -> None:
+        html = "<h1>T</h1><iframe src=x>fallback<p>rest of the book</p>"
+        chapter = self._build([self._chapter("i.html", html)]).read("OEBPS/chapter-001.xhtml").decode()
+        self.assertIn("rest of the book", chapter)
+
+    def test_document_with_unclosed_head_keeps_its_body(self) -> None:
+        html = "<head><meta charset=utf-8><body><h1>Real chapter</h1><p>Body text</p>"
+        chapter = self._build([self._chapter("h.html", html)]).read("OEBPS/chapter-001.xhtml").decode()
+        self.assertIn("Body text", chapter)
+        self.assertIn("<h1>Real chapter</h1>", chapter)
+
+    def test_output_must_be_an_epub_path(self) -> None:
+        chapter = str(self._chapter("x.html", "<h1>X</h1>"))
+        code = make_epub.main(["--title", "T", "--author", "A", "--output", str(self.dir / "notes.txt"), chapter])
+        self.assertEqual(code, 2)
+        self.assertFalse((self.dir / "notes.txt").exists())
+
+    def test_existing_non_epub_file_is_never_overwritten(self) -> None:
+        victim = self.dir / "important.epub"
+        victim.write_text("not a book")
+        chapter = str(self._chapter("x.html", "<h1>X</h1>"))
+        code = make_epub.main(["--title", "T", "--author", "A", "--output", str(victim), chapter])
+        self.assertEqual(code, 2)
+        self.assertEqual(victim.read_text(), "not a book")
+
+    def test_existing_epub_can_be_rebuilt(self) -> None:
+        chapter = str(self._chapter("x.html", "<h1>X</h1>"))
+        output = str(self.dir / "again.epub")
+        self.assertEqual(make_epub.main(["--title", "T", "--author", "A", "--output", output, chapter]), 0)
+        self.assertEqual(make_epub.main(["--title", "T", "--author", "A", "--output", output, chapter]), 0)
+
     def test_cover_is_optional(self) -> None:
         without = self._build(self._two_chapters())
         self.assertNotIn("OEBPS/cover.xhtml", without.namelist())

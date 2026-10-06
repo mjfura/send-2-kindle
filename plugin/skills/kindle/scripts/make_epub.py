@@ -14,6 +14,7 @@ from __future__ import annotations
 import argparse
 import datetime as dt
 import html
+import re
 import sys
 import uuid
 import zipfile
@@ -27,7 +28,11 @@ ALLOWED = {
     "thead", "tbody", "tfoot", "tr", "th", "td", "caption", "colgroup", "col", "dl", "dt", "dd",
     "div", "span", "figure", "figcaption", "wbr",
 }  # fmt: skip
-DROP_WITH_CONTENT = {"script", "style", "head", "title", "iframe", "object", "noscript", "template"}
+# Only these are dropped with their content (HTMLParser always closes them). Other unknown tags
+# (iframe, head, noscript…) are dropped but keep their text, so an unclosed one cannot swallow a chapter.
+DROP_WITH_CONTENT = {"script", "style"}
+# Characters that XML 1.0 forbids: Kindle rejects an EPUB that contains them.
+INVALID_XML_CHARS = re.compile("[\x00-\x08\x0b\x0c\x0e-\x1f\ufffe\uffff\ud800-\udfff]")
 ALLOWED_ATTRIBUTES = {"a": {"href"}, "td": {"colspan", "rowspan"}, "th": {"colspan", "rowspan"}}
 SAFE_LINK_SCHEMES = {"http", "https", "mailto"}
 
@@ -49,8 +54,12 @@ blockquote { margin: 0.5em 1.5em; font-style: italic; }
 """
 
 
+def _clean(text: str) -> str:
+    return INVALID_XML_CHARS.sub("", text)
+
+
 def _escape(text: str) -> str:
-    return html.escape(text, quote=False)
+    return html.escape(_clean(text), quote=False)
 
 
 def _safe_href(value: str) -> bool:
@@ -83,7 +92,7 @@ class _Sanitizer(HTMLParser):
             if name in ALLOWED_ATTRIBUTES.get(tag, set()) and value:
                 if name == "href" and not _safe_href(value):
                     continue
-                kept += f' {name}="{html.escape(value, quote=True)}"'
+                kept += f' {name}="{html.escape(_clean(value), quote=True)}"'
         if tag in VOID:
             self.out.append(f"<{tag}{kept}/>")
             return
@@ -107,7 +116,7 @@ class _Sanitizer(HTMLParser):
             return
         self.out.append(_escape(data))
         if self._h1_text is not None:
-            self._h1_text.append(data)
+            self._h1_text.append(_clean(data))
 
     def _close_top(self) -> str:
         tag = self.stack.pop()
@@ -154,6 +163,7 @@ def build_epub(
     cover: bool = False,
 ) -> Path:
     """Write an EPUB 3 to ``output`` from HTML fragment files and return its path."""
+    title, author, language = _clean(title), _clean(author), _clean(language)
     book_id = f"urn:uuid:{uuid.uuid4()}"
     modified = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     files: dict[str, str] = {}
@@ -235,6 +245,14 @@ def build_epub(
     return output
 
 
+def _is_epub(path: Path) -> bool:
+    try:
+        with zipfile.ZipFile(path) as archive:
+            return archive.read("mimetype") == b"application/epub+zip"
+    except (zipfile.BadZipFile, KeyError, OSError):
+        return False
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Build an EPUB from HTML chapter fragments.")
     parser.add_argument("--title", required=True)
@@ -252,6 +270,12 @@ def main(argv: list[str] | None = None) -> int:
         dt.date.fromisoformat(args.date)
     except ValueError:
         print(f"make_epub: invalid --date {args.date!r}; use YYYY-MM-DD", file=sys.stderr)
+        return 2
+    if args.output.suffix.lower() != ".epub":
+        print(f"make_epub: --output must end in .epub: {args.output}", file=sys.stderr)
+        return 2
+    if args.output.exists() and not _is_epub(args.output):
+        print(f"make_epub: refusing to overwrite {args.output}: it is not an EPUB", file=sys.stderr)
         return 2
     missing = [str(path) for path in args.chapters if not path.is_file()]
     if missing:
