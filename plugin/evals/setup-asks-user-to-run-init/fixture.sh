@@ -11,5 +11,7 @@ cp "$plugin/skills/kindle/scripts/make_epub.py" bin/make_epub.py
 for py in /opt/homebrew/bin/python3 /usr/local/bin/python3 /usr/bin/python3; do
   if [ -x "$py" ]; then ln -sf "$py" bin/python3; break; fi
 done
+# Never overwrite a real profile: the eval scaffold always starts from an empty home.
+[ ! -e "$HOME/.config/s2k/reading.json" ] || { echo "refusing to overwrite $HOME/.config/s2k/reading.json; run cases through plugin/evals/run.sh" >&2; exit 1; }
 mkdir -p "$HOME/.config/s2k"
 printf '{"kindle":"basic","author":"Test Reader","cover":true,"language":"en"}\n' > "$HOME/.config/s2k/reading.json"

@@ -40,4 +40,20 @@ check "send auth-fail" 1 "authentication failed" auth-fail send books/dune.epub
 check "send without files" 2 "Missing argument" ready send
 if grep -qF "s2k send books/dune.epub" "$S2K_STUB_LOG"; then echo "ok: calls are logged"; else echo "FAIL: calls are logged"; failures=$((failures + 1)); fi
 
+# Eval fixtures must never overwrite a real reading profile when run by hand.
+EVALS="$(dirname "$STUB")/.."
+FIXTURE="$EVALS/kindle-sends-complete-request-directly/fixture.sh"
+mkdir -p "$WORK/fakehome/.config/s2k" "$WORK/fakebin" "$WORK/fixture-ws"
+printf 'mine' > "$WORK/fakehome/.config/s2k/reading.json"
+cp "$STUB" "$WORK/fakebin/s2k"
+mkdir -p "$WORK/plugin/skills/kindle/scripts" && cp "$EVALS/../skills/kindle/scripts/make_epub.py" "$WORK/plugin/skills/kindle/scripts/"
+mv "$WORK/fakebin" "$WORK/bin"
+if (cd "$WORK/fixture-ws" && HOME="$WORK/fakehome" PATH="$WORK/bin:$PATH" bash "$FIXTURE" >/dev/null 2>&1); then
+  echo "FAIL: fixture refuses to overwrite a real reading.json"; failures=$((failures + 1))
+elif [ "$(cat "$WORK/fakehome/.config/s2k/reading.json")" != mine ]; then
+  echo "FAIL: fixture left an existing reading.json untouched"; failures=$((failures + 1))
+else
+  echo "ok: fixture refuses to overwrite a real reading.json"
+fi
+
 if [ "$failures" -eq 0 ]; then echo "all stub tests passed"; else echo "$failures failure(s)"; exit 1; fi

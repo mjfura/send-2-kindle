@@ -41,5 +41,7 @@ def due(plant, today):
     return (today - plant.last_watered).days >= plant.every_days
 ```
 PLAN
+# Never overwrite a real profile: the eval scaffold always starts from an empty home.
+[ ! -e "$HOME/.config/s2k/reading.json" ] || { echo "refusing to overwrite $HOME/.config/s2k/reading.json; run cases through plugin/evals/run.sh" >&2; exit 1; }
 mkdir -p "$HOME/.config/s2k"
 printf '{"kindle":"basic","author":"Test Reader","cover":true,"language":"en"}\n' > "$HOME/.config/s2k/reading.json"

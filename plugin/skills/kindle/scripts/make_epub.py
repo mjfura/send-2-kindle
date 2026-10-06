@@ -31,6 +31,18 @@ ALLOWED = {
 # Only these are dropped with their content (HTMLParser always closes them). Other unknown tags
 # (iframe, head, noscript…) are dropped but keep their text, so an unclosed one cannot swallow a chapter.
 DROP_WITH_CONTENT = {"script", "style"}
+# Starting one of these tags implicitly closes an open sibling, as browsers do (<li>a<li>b).
+IMPLICIT_END = {
+    "p": {"p"}, "li": {"li"}, "dt": {"dt", "dd"}, "dd": {"dt", "dd"},
+    "tr": {"tr", "td", "th"}, "td": {"td", "th"}, "th": {"td", "th"},
+}  # fmt: skip
+# Block-level tags that cannot live inside a <p>.
+CLOSES_P = {
+    "p", "div", "ul", "ol", "li", "dl", "dt", "dd", "table", "tr", "td", "th", "pre", "blockquote",
+    "figure", "hr", "h1", "h2", "h3", "h4", "h5", "h6",
+}  # fmt: skip
+EMPTY_HEADINGS = re.compile(r"<(h[1-6])>\s*</\1>")
+LANGUAGE_TAG = re.compile(r"[A-Za-z]{2,3}(-[A-Za-z0-9]{1,8})*")
 # Characters that XML 1.0 forbids: Kindle rejects an EPUB that contains them.
 INVALID_XML_CHARS = re.compile("[\x00-\x08\x0b\x0c\x0e-\x1f\ufffe\uffff\ud800-\udfff]")
 ALLOWED_ATTRIBUTES = {"a": {"href"}, "td": {"colspan", "rowspan"}, "th": {"colspan", "rowspan"}}
@@ -73,6 +85,9 @@ def _safe_href(value: str) -> bool:
 
 
 class _Sanitizer(HTMLParser):
+    # <xmp> holds literal text, like <script> and <style>; it is rendered as <pre>.
+    CDATA_CONTENT_ELEMENTS = ("script", "style", "xmp")
+
     def __init__(self) -> None:
         super().__init__(convert_charrefs=True)
         self.out: list[str] = []
@@ -85,8 +100,13 @@ class _Sanitizer(HTMLParser):
         if tag in DROP_WITH_CONTENT:
             self.skip_depth += 1
             return
-        if self.skip_depth or tag not in ALLOWED:
+        if self.skip_depth:
             return
+        if tag == "xmp":
+            tag = "pre"
+        if tag not in ALLOWED:
+            return
+        self._close_implicitly(tag)
         kept = ""
         for name, value in attrs:
             if name in ALLOWED_ATTRIBUTES.get(tag, set()) and value:
@@ -105,6 +125,8 @@ class _Sanitizer(HTMLParser):
         if tag in DROP_WITH_CONTENT:
             self.skip_depth = max(0, self.skip_depth - 1)
             return
+        if tag == "xmp":
+            tag = "pre"
         if self.skip_depth or tag in VOID or tag not in self.stack:
             return
         while self.stack:
@@ -117,6 +139,14 @@ class _Sanitizer(HTMLParser):
         self.out.append(_escape(data))
         if self._h1_text is not None:
             self._h1_text.append(_clean(data))
+
+    def _close_implicitly(self, tag: str) -> None:
+        if tag == "a" and "a" in self.stack:  # links cannot nest
+            while self.stack and self._close_top() != "a":
+                pass
+        closes = IMPLICIT_END.get(tag, set()) | ({"p"} if tag in CLOSES_P else set())
+        while self.stack and self.stack[-1] in closes:
+            self._close_top()
 
     def _close_top(self) -> str:
         tag = self.stack.pop()
@@ -137,7 +167,7 @@ def sanitize(fragment: str) -> tuple[str, str | None]:
     """Return (well-formed XHTML body, text of the first <h1> or None)."""
     parser = _Sanitizer()
     parser.feed(fragment)
-    body = parser.finish()
+    body = EMPTY_HEADINGS.sub("", parser.finish())
     return body, parser.first_h1
 
 
@@ -145,7 +175,7 @@ def _page(title: str, body: str, language: str) -> str:
     return (
         '<?xml version="1.0" encoding="utf-8"?>\n<!DOCTYPE html>\n'
         f'<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" '
-        f'xml:lang="{language}" lang="{language}">\n'
+        f'xml:lang="{html.escape(language)}" lang="{html.escape(language)}">\n'
         f'<head><meta charset="utf-8"/><title>{_escape(title)}</title>'
         '<link rel="stylesheet" type="text/css" href="style.css"/></head>\n'
         f"<body>\n{body}\n</body>\n</html>\n"
@@ -220,7 +250,7 @@ def build_epub(
     files["content.opf"] = (
         '<?xml version="1.0" encoding="utf-8"?>\n'
         f'<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="book-id" '
-        f'xml:lang="{language}">\n<metadata xmlns:dc="http://purl.org/dc/elements/1.1/">\n'
+        f'xml:lang="{html.escape(language)}">\n<metadata xmlns:dc="http://purl.org/dc/elements/1.1/">\n'
         f'<dc:identifier id="book-id">{book_id}</dc:identifier>\n'
         f"<dc:title>{_escape(title)}</dc:title>\n<dc:creator>{_escape(author)}</dc:creator>\n"
         f"<dc:language>{_escape(language)}</dc:language>\n<dc:date>{_escape(date)}</dc:date>\n"
@@ -270,6 +300,12 @@ def main(argv: list[str] | None = None) -> int:
         dt.date.fromisoformat(args.date)
     except ValueError:
         print(f"make_epub: invalid --date {args.date!r}; use YYYY-MM-DD", file=sys.stderr)
+        return 2
+    if not args.title.strip() or not args.author.strip():
+        print("make_epub: --title and --author must not be empty", file=sys.stderr)
+        return 2
+    if not LANGUAGE_TAG.fullmatch(args.language):
+        print(f"make_epub: invalid --language {args.language!r}; use a code like en or es-PE", file=sys.stderr)
         return 2
     if args.output.suffix.lower() != ".epub":
         print(f"make_epub: --output must end in .epub: {args.output}", file=sys.stderr)
