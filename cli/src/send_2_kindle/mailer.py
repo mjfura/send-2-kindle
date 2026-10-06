@@ -43,6 +43,14 @@ def _auth_failure_message(settings: Settings) -> str:
     return message
 
 
+def _security_hint(settings: Settings) -> str:
+    if settings.smtp_port == 465 and settings.smtp_security == "starttls":
+        return " (port 465 normally needs S2K_SMTP_SECURITY=ssl)"
+    if settings.smtp_port == 587 and settings.smtp_security == "ssl":
+        return " (port 587 normally needs S2K_SMTP_SECURITY=starttls)"
+    return ""
+
+
 def _close_quietly(smtp: smtplib.SMTP | None) -> None:
     if smtp is not None:
         smtp.close()
@@ -112,6 +120,7 @@ class KindleMailer:
             _close_quietly(smtp)
             raise SmtpConnectionError(
                 f"could not connect to {settings.smtp_host}:{settings.smtp_port}: {error}"
+                f"{_security_hint(settings)}"
             ) from error
         self._smtp = smtp
         return self

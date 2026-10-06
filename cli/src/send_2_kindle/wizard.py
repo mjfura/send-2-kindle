@@ -46,7 +46,11 @@ def _quote(value: str) -> str:
 
 
 def write_config(path: Path, values: dict[str, str]) -> None:
-    """Atomically write ``values`` as KEY="value" lines to ``path`` (mode 600, new dirs 700)."""
+    """Atomically write ``values`` as KEY="value" lines to ``path`` (mode 600, new dirs 700).
+
+    A symlinked config file (e.g. managed by a dotfiles repo) is kept: its target is rewritten.
+    """
+    path = path.resolve() if path.is_symlink() else path
     path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
     content = HEADER + "".join(f"{key}={_quote(value)}\n" for key, value in values.items())
     fd, temp_name = tempfile.mkstemp(dir=path.parent, prefix=".config.env.")
@@ -79,16 +83,24 @@ def _ask(text: str, adapter: TypeAdapter[Any], default: str | None) -> str:
 
 
 def _ask_password(has_current: bool) -> str | None:
-    """Return the new password, or None to keep the current one."""
-    if has_current:
-        answer = typer.prompt(
-            "SMTP password (empty keeps the current one)",
-            default="",
-            hide_input=True,
-            show_default=False,
-        )
-        return str(answer) or None
-    return str(typer.prompt("SMTP password", hide_input=True))
+    """Return the new password (typed twice), or None to keep the current one."""
+    while True:
+        if has_current:
+            answer = str(
+                typer.prompt(
+                    "SMTP password (empty keeps the current one)",
+                    default="",
+                    hide_input=True,
+                    show_default=False,
+                )
+            )
+            if not answer:
+                return None
+        else:
+            answer = str(typer.prompt("SMTP password", hide_input=True))
+        if str(typer.prompt("Repeat the SMTP password", hide_input=True)) == answer:
+            return answer
+        typer.secho("  The passwords do not match; try again.", fg=typer.colors.YELLOW)
 
 
 def _collect(current: dict[str, str]) -> dict[str, str]:

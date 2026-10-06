@@ -166,3 +166,12 @@ def test_config_file_values_are_read_literally(
     monkeypatch.setenv("FOO", "EXPANDED")
     isolated_env.write_text(REQUIRED_FILE_LINES + 'S2K_SMTP_PASSWORD="a${FOO}b${HOME}c"\n')
     assert load_settings().smtp_password.get_secret_value() == "a${FOO}b${HOME}c"
+
+
+def test_relative_xdg_config_home_is_ignored(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    # The XDG spec says relative values must be ignored.
+    monkeypatch.delenv("S2K_CONFIG_FILE")
+    monkeypatch.setenv("XDG_CONFIG_HOME", "relative/config")
+    assert config.config_file_path() == tmp_path / "home" / ".config" / "s2k" / "config.env"

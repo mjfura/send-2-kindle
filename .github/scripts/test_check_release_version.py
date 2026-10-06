@@ -45,6 +45,15 @@ class CheckReleaseVersionTest(unittest.TestCase):
     def test_invalid_manifest_version_fails(self) -> None:
         self.assertIn("not a valid version", check("v0.1.0", [self._plugin("latest")]) or "")
 
+    def test_tag_with_leading_zero_fails(self) -> None:
+        self.assertIn("vX.Y.Z", check("v01.2.3", [self._pyproject("1.2.3")]) or "")
+
+    def test_local_version_tag_fails(self) -> None:
+        self.assertIn("vX.Y.Z", check("v1.2.3+local", [self._pyproject("1.2.3")]) or "")
+
+    def test_release_candidate_without_hyphen_fails(self) -> None:
+        self.assertIn("vX.Y.Z-rc.N", check("v0.2.0rc1", [self._pyproject("0.2.0rc1")]) or "")
+
 
 if __name__ == "__main__":
     unittest.main()

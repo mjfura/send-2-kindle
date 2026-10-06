@@ -33,8 +33,10 @@ def config_file_path() -> Path:
     override = os.environ.get(CONFIG_FILE_VARIABLE)
     if override:
         return Path(override).expanduser()
-    base = os.environ.get("XDG_CONFIG_HOME") or "~/.config"
-    return Path(base).expanduser() / "s2k" / "config.env"
+    xdg = os.environ.get("XDG_CONFIG_HOME", "")
+    # The XDG spec says relative values must be ignored.
+    base = Path(xdg) if xdg and Path(xdg).is_absolute() else Path("~/.config").expanduser()
+    return base / "s2k" / "config.env"
 
 
 class Settings(BaseSettings):
