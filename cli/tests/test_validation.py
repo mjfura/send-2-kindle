@@ -1,9 +1,10 @@
 import os
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
-from send_2_kindle import constants
+from send_2_kindle import constants, validation
 from send_2_kindle.errors import FileValidationError
 from send_2_kindle.validation import validate_file
 
@@ -82,3 +83,36 @@ def test_rejects_file_over_size_limit(tmp_path: Path, monkeypatch: pytest.Monkey
     monkeypatch.setattr(constants, "MAX_EMAIL_SIZE_BYTES", 10)
     with pytest.raises(FileValidationError, match="file exceeds"):
         validate_file(_file(tmp_path, "big.txt", b"x" * 11))
+
+
+def test_size_limit_names_the_provider(tmp_path: Path) -> None:
+    with pytest.raises(FileValidationError, match=r"file exceeds 1e-05 MB, the limit for iCloud"):
+        validate_file(_file(tmp_path, "big.pdf", b"x" * 11), max_bytes=10, provider_name="iCloud")
+
+
+class _StatPath(type(Path())):  # type: ignore[misc]
+    """A Path whose stat() returns a fixed result, so no global patching is needed."""
+
+    stat_result: object = SimpleNamespace()
+
+    def stat(self, *, follow_symlinks: bool = True) -> object:
+        return self.stat_result
+
+
+def _stat_path(**fields: int) -> Path:
+    path = _StatPath("cloud.pdf")
+    path.stat_result = SimpleNamespace(**fields)
+    return path
+
+
+def test_is_not_downloaded_reads_the_dataless_flag() -> None:
+    assert validation.is_not_downloaded(_stat_path(st_flags=validation.SF_DATALESS))
+    assert not validation.is_not_downloaded(_stat_path(st_flags=0))
+
+
+def test_is_not_downloaded_without_st_flags() -> None:
+    assert not validation.is_not_downloaded(_stat_path())
+
+
+def test_is_not_downloaded_on_missing_file(tmp_path: Path) -> None:
+    assert not validation.is_not_downloaded(tmp_path / "missing.pdf")

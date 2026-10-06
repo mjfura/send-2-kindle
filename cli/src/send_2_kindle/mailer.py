@@ -12,6 +12,7 @@ from send_2_kindle import constants
 from send_2_kindle.config import Settings
 from send_2_kindle.errors import SendError, SmtpAuthError, SmtpConnectionError
 from send_2_kindle.providers import provider_for_host
+from send_2_kindle.validation import is_not_downloaded
 
 
 def build_message(settings: Settings, path: Path) -> EmailMessage:
@@ -152,6 +153,10 @@ class KindleMailer:
         try:
             message = build_message(self._settings, path)
         except OSError as error:
+            if is_not_downloaded(path):
+                raise SendError(
+                    f"could not download it from iCloud (are you offline?): {error}"
+                ) from error
             raise SendError(f"could not read file: {error}") from error
         try:
             self._smtp.send_message(message)

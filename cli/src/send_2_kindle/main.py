@@ -6,7 +6,7 @@ from typing import Annotated
 
 import typer
 
-from send_2_kindle import installed_version
+from send_2_kindle import constants, installed_version
 from send_2_kindle.config import load_settings
 from send_2_kindle.doctor import report, run_checks
 from send_2_kindle.errors import (
@@ -17,7 +17,8 @@ from send_2_kindle.errors import (
     SmtpConnectionError,
 )
 from send_2_kindle.mailer import KindleMailer
-from send_2_kindle.validation import validate_file
+from send_2_kindle.providers import provider_for_host
+from send_2_kindle.validation import is_not_downloaded, validate_file
 from send_2_kindle.wizard import run_wizard
 
 AMAZON_NOTE = (
@@ -67,11 +68,15 @@ def send(
         typer.secho(str(error), fg=typer.colors.RED, err=True)
         raise typer.Exit(code=2) from None
 
+    provider = provider_for_host(settings.smtp_host)
+    max_bytes = min(constants.MAX_EMAIL_SIZE_BYTES, provider.max_file_bytes) if provider else None
+    provider_name = provider.name if provider else None
+
     outcomes = [Outcome(path) for path in files]
     pending: list[Outcome] = []
     for outcome in outcomes:
         try:
-            validate_file(outcome.path)
+            validate_file(outcome.path, max_bytes=max_bytes, provider_name=provider_name)
         except FileValidationError as error:
             outcome.reason = str(error)
         else:
@@ -81,6 +86,8 @@ def send(
         try:
             with KindleMailer(settings) as mailer:
                 for outcome in pending:
+                    if is_not_downloaded(outcome.path):
+                        typer.echo(f'Downloading "{outcome.path.name}" from iCloud…')
                     try:
                         mailer.send(outcome.path)
                     except SendError as error:
