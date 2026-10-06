@@ -1,0 +1,12 @@
+{
+  "name": "send-2-kindle",
+  "description": "Send documents to your Kindle from Claude Code.",
+  "owner": { "name": "Marco Fura", "url": "https://github.com/mjfura" },
+  "plugins": [
+    {
+      "name": "s2k",
+      "source": "./plugin",
+      "description": "Send files, plans, specs, reports and summaries to your Kindle as pleasant reading editions."
+    }
+  ]
+}
