@@ -1,0 +1,59 @@
+# Validate the s2k plugin, test its scripts and keep its version in sync with the CLI. Runs on every
+# PR (a required check must always report); the checks run only when relevant files changed.
+name: plugin
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, edited]
+
+permissions:
+  contents: read
+
+jobs:
+  plugin:
+    name: plugin
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Detect changes
+        id: changes
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          if git diff --name-only "$BASE_SHA...$HEAD_SHA" | grep -qE '^(plugin/|\.claude-plugin/|cli/pyproject\.toml$|\.github/scripts/|\.github/workflows/plugin\.yml$)'; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "No plugin or version changes; skipping."
+          fi
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        if: steps.changes.outputs.run == 'true'
+        with:
+          python-version: "3.13"
+
+      - name: Script tests
+        if: steps.changes.outputs.run == 'true'
+        run: |
+          python -m pip install --quiet "packaging==26.3"
+          python -m unittest discover -s .github/scripts -p 'test_*.py'
+          python -m unittest discover -s plugin/tests
+          sh plugin/evals/stub/test_stub.sh
+
+      - name: Plugin version matches the CLI version
+        if: steps.changes.outputs.run == 'true'
+        run: |
+          cli_version=$(python -c 'import tomllib; print(tomllib.load(open("cli/pyproject.toml", "rb"))["project"]["version"])')
+          python .github/scripts/check_release_version.py "v$cli_version" cli/pyproject.toml plugin/.claude-plugin/plugin.json
+
+      - name: Validate plugin and marketplace
+        if: steps.changes.outputs.run == 'true'
+        run: |
+          npm install -g @anthropic-ai/claude-code@2.1.290
+          claude plugin validate --strict plugin
+          claude plugin validate --strict .
