@@ -3,6 +3,9 @@
 One version for the whole repository. A `vX.Y.Z` tag on `main` publishes the CLI to PyPI
 (`s2k-cli`) and creates a GitHub Release (`.github/workflows/release.yml`).
 
+The same tag versions the Claude Code plugin in `plugin/`; users receive a new plugin copy when its
+`plugin.json` version changes.
+
 ## One-time setup (owner)
 
 1. Create a PyPI account at <https://pypi.org/account/register/> and enable 2FA.
@@ -22,7 +25,10 @@ once `-`, `_` and `.` are removed, and `send2kindle` already exists.
 
 1. Pick the version: `~/.claude/skills/git-workflow/scripts/next-version.sh --verbose`.
 2. If it differs from `cli/pyproject.toml`, open a PR `chore(release): vX.Y.Z` that changes only
-   `version` (canonical PEP 440 form, e.g. `0.2.0rc1` for `v0.2.0-rc.1`) and merge it.
+   the version in `cli/pyproject.toml` **and** `plugin/.claude-plugin/plugin.json` (canonical PEP 440
+   form, e.g. `0.2.0rc1` for `v0.2.0-rc.1`) and merge it. If `plugin/` changed since the last tag,
+   the owner may run the evals first (`plugin/evals/run.sh --runs 1 --ablation none`) and paste the
+   summary in the PR.
 3. Tag and push:
    ```bash
    git switch main && git pull --ff-only
