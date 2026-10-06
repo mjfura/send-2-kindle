@@ -98,6 +98,19 @@ class MakeEpubTest(unittest.TestCase):
             self.assertNotIn(forbidden, chapter)
         self.assertIn('href="https://example.com"', chapter)
 
+    def test_only_safe_link_schemes_are_kept(self) -> None:
+        hrefs = [
+            "java\tscript:evil()", "java\nscript:evil()", " JAVASCRIPT:evil()",
+            "vbscript:evil()", "data:text/html,evil", "&#106;avascript:evil()",
+        ]
+        html = "<h1>T</h1>" + "".join(f'<a href="{h}">bad</a>' for h in hrefs)
+        html += '<a href="https://ok.example">a</a><a href="mailto:me@example.com">b</a><a href="#part">c</a>'
+        chapter = self._build([self._chapter("l.html", html)]).read("OEBPS/chapter-001.xhtml").decode()
+        for forbidden in ("script:", "evil", "data:"):
+            self.assertNotIn(forbidden, chapter)
+        for kept in ('href="https://ok.example"', 'href="mailto:me@example.com"', 'href="#part"'):
+            self.assertIn(kept, chapter)
+
     def test_cover_is_optional(self) -> None:
         without = self._build(self._two_chapters())
         self.assertNotIn("OEBPS/cover.xhtml", without.namelist())

@@ -29,6 +29,7 @@ ALLOWED = {
 }  # fmt: skip
 DROP_WITH_CONTENT = {"script", "style", "head", "title", "iframe", "object", "noscript", "template"}
 ALLOWED_ATTRIBUTES = {"a": {"href"}, "td": {"colspan", "rowspan"}, "th": {"colspan", "rowspan"}}
+SAFE_LINK_SCHEMES = {"http", "https", "mailto"}
 
 STYLESHEET = """\
 body { font-family: serif; line-height: 1.5; margin: 0 0.5em; }
@@ -52,6 +53,16 @@ def _escape(text: str) -> str:
     return html.escape(text, quote=False)
 
 
+def _safe_href(value: str) -> bool:
+    """Allow http(s)/mailto links and relative links; reject every other scheme (javascript:, data:…)."""
+    # Readers ignore whitespace and control characters inside a scheme ("java\tscript:").
+    compact = "".join(char for char in value if char.isprintable() and not char.isspace())
+    head = compact.split("/", 1)[0].split("?", 1)[0].split("#", 1)[0]
+    if ":" not in head:
+        return True
+    return head.split(":", 1)[0].lower() in SAFE_LINK_SCHEMES
+
+
 class _Sanitizer(HTMLParser):
     def __init__(self) -> None:
         super().__init__(convert_charrefs=True)
@@ -70,7 +81,7 @@ class _Sanitizer(HTMLParser):
         kept = ""
         for name, value in attrs:
             if name in ALLOWED_ATTRIBUTES.get(tag, set()) and value:
-                if value.strip().lower().startswith("javascript:"):
+                if name == "href" and not _safe_href(value):
                     continue
                 kept += f' {name}="{html.escape(value, quote=True)}"'
         if tag in VOID:
