@@ -8,6 +8,7 @@ import typer
 
 from send_2_kindle import installed_version
 from send_2_kindle.config import load_settings
+from send_2_kindle.doctor import report, run_checks
 from send_2_kindle.errors import (
     ConfigError,
     FileValidationError,
@@ -91,6 +92,12 @@ def send(
     _print_report(outcomes)
     if not all(outcome.sent for outcome in outcomes):
         raise typer.Exit(code=1)
+
+
+@app.command()
+def doctor() -> None:
+    """Check that s2k is configured and can log in to your SMTP server (sends nothing)."""
+    raise typer.Exit(code=report(run_checks()))
 
 
 def _print_report(outcomes: list[Outcome]) -> None:
