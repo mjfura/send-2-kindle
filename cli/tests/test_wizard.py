@@ -247,3 +247,52 @@ def test_unknown_existing_host_defaults_to_other(isolated_env: Path) -> None:
     assert result.exit_code == 0, result.output
     assert "[other]" in result.output
     assert load_settings().smtp_host == "smtp.example.com"
+
+
+@pytest.mark.usefixtures("interactive")
+def test_provider_answer_is_case_insensitive(isolated_env: Path) -> None:
+    answers = _answers("iCloud", "reader@kindle.com", "me@icloud.com", PASSWORD, PASSWORD, "n")
+    result = runner.invoke(app, ["init"], input=answers)
+    assert result.exit_code == 0, result.output
+    assert load_settings().smtp_host == "smtp.mail.me.com"
+
+
+@pytest.mark.usefixtures("interactive")
+def test_existing_gmail_port_and_security_are_kept(isolated_env: Path) -> None:
+    wizard.write_config(
+        isolated_env,
+        {
+            "S2K_KINDLE_EMAIL": "reader@kindle.com",
+            "S2K_SENDER_EMAIL": "me@gmail.com",
+            "S2K_SMTP_HOST": "smtp.gmail.com",
+            "S2K_SMTP_PORT": "465",
+            "S2K_SMTP_SECURITY": "ssl",
+            "S2K_SMTP_PASSWORD": "secret",
+        },
+    )
+    result = runner.invoke(app, ["init"], input=_answers("", "", "", "", "n"))
+    assert result.exit_code == 0, result.output
+    settings = load_settings()
+    assert (settings.smtp_port, settings.smtp_security) == (465, "ssl")
+
+
+@pytest.mark.usefixtures("interactive")
+def test_username_is_dropped_when_the_provider_changes(isolated_env: Path) -> None:
+    wizard.write_config(
+        isolated_env,
+        {
+            "S2K_KINDLE_EMAIL": "reader@kindle.com",
+            "S2K_SENDER_EMAIL": "me@gmail.com",
+            "S2K_SMTP_HOST": "smtp.gmail.com",
+            "S2K_SMTP_PORT": "587",
+            "S2K_SMTP_SECURITY": "starttls",
+            "S2K_SMTP_PASSWORD": "secret",
+            "S2K_SMTP_USERNAME": "old@gmail.com",
+        },
+    )
+    answers = _answers("icloud", "", "me@icloud.com", "new secret", "new secret", "n")
+    result = runner.invoke(app, ["init"], input=answers)
+    assert result.exit_code == 0, result.output
+    settings = load_settings()
+    assert settings.smtp_username is None
+    assert settings.login_username == "me@icloud.com"

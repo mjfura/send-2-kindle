@@ -4,10 +4,10 @@ import os
 import sys
 import tempfile
 from pathlib import Path
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
 import typer
-from pydantic import EmailStr, TypeAdapter, ValidationError
+from pydantic import BeforeValidator, EmailStr, TypeAdapter, ValidationError
 
 from send_2_kindle.config import (
     SmtpHost,
@@ -38,7 +38,12 @@ _EMAIL: TypeAdapter[Any] = TypeAdapter(EmailStr)
 _HOST: TypeAdapter[Any] = TypeAdapter(SmtpHost)
 _PORT: TypeAdapter[Any] = TypeAdapter(SmtpPort)
 _SECURITY: TypeAdapter[Any] = TypeAdapter(SmtpSecurity)
-_PROVIDER: TypeAdapter[Any] = TypeAdapter(Literal["gmail", "icloud", "other"])
+_PROVIDER: TypeAdapter[Any] = TypeAdapter(
+    Annotated[
+        Literal["gmail", "icloud", "other"],
+        BeforeValidator(lambda value: value.lower() if isinstance(value, str) else value),
+    ]
+)
 
 
 def _is_interactive() -> bool:
@@ -111,9 +116,8 @@ def _ask_password(has_current: bool) -> str | None:
 def _collect(current: dict[str, str]) -> dict[str, str]:
     existing_host = current.get("S2K_SMTP_HOST")
     known = provider_for_host(existing_host) if existing_host else GMAIL
-    provider = provider_for_key(
-        _ask("Email provider (gmail/icloud/other)", _PROVIDER, known.key if known else "other")
-    )
+    choice = _ask("Email provider (gmail/icloud/other)", _PROVIDER, known.key if known else "other")
+    provider = provider_for_key(choice.lower())
     sender_label = "Email you send from"
     if provider is not None and provider.key == "icloud":
         sender_label += " (your iCloud Mail address, e.g. name@icloud.com)"
@@ -122,10 +126,16 @@ def _collect(current: dict[str, str]) -> dict[str, str]:
         "S2K_SENDER_EMAIL": _ask(sender_label, _EMAIL, current.get("S2K_SENDER_EMAIL")),
     }
     if provider is not None:
+        # Same provider as before: keep a port/security the user chose (e.g. Gmail on 465/ssl).
+        same = existing_host is not None and provider_for_host(existing_host) is provider
         values |= {
             "S2K_SMTP_HOST": provider.host,
-            "S2K_SMTP_PORT": str(provider.port),
-            "S2K_SMTP_SECURITY": provider.security,
+            "S2K_SMTP_PORT": current.get("S2K_SMTP_PORT", str(provider.port))
+            if same
+            else str(provider.port),
+            "S2K_SMTP_SECURITY": current.get("S2K_SMTP_SECURITY", provider.security)
+            if same
+            else provider.security,
         }
         typer.echo(f"  {provider.name} needs an {provider.password_name}: {provider.password_url}")
     else:
@@ -138,7 +148,9 @@ def _collect(current: dict[str, str]) -> dict[str, str]:
         }
     password = _ask_password(bool(current.get("S2K_SMTP_PASSWORD")))
     values["S2K_SMTP_PASSWORD"] = password if password is not None else current["S2K_SMTP_PASSWORD"]
-    if current.get("S2K_SMTP_USERNAME"):
+    # A custom login belongs to its server: drop it when the server changes.
+    old_host = (existing_host or "").strip().lower()
+    if current.get("S2K_SMTP_USERNAME") and values["S2K_SMTP_HOST"].strip().lower() == old_host:
         values["S2K_SMTP_USERNAME"] = current["S2K_SMTP_USERNAME"]
     return values
 

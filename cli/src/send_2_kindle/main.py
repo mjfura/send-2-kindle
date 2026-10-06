@@ -82,12 +82,24 @@ def send(
         else:
             pending.append(outcome)
 
+    # Download iCloud Drive files before logging in: a long download would leave the SMTP
+    # session idle, and a server that drops it would fail every remaining file.
+    ready: list[Outcome] = []
+    for outcome in pending:
+        if is_not_downloaded(outcome.path):
+            typer.echo(f'Downloading "{outcome.path.name}" from iCloud…')
+            try:
+                _fetch_from_icloud(outcome.path)
+            except OSError as error:
+                outcome.reason = f"could not download it from iCloud (are you offline?): {error}"
+                continue
+        ready.append(outcome)
+    pending = ready
+
     if pending:
         try:
             with KindleMailer(settings) as mailer:
                 for outcome in pending:
-                    if is_not_downloaded(outcome.path):
-                        typer.echo(f'Downloading "{outcome.path.name}" from iCloud…')
                     try:
                         mailer.send(outcome.path)
                     except SendError as error:
@@ -112,6 +124,11 @@ def doctor() -> None:
 def init() -> None:
     """Interactive setup that writes your config file. Run it in your own terminal."""
     raise typer.Exit(code=run_wizard())
+
+
+def _fetch_from_icloud(path: Path) -> None:
+    """Reading a not-downloaded iCloud Drive file makes macOS download it."""
+    path.read_bytes()
 
 
 def _print_report(outcomes: list[Outcome]) -> None:

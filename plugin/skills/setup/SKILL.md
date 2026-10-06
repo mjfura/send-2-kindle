@@ -49,7 +49,7 @@ Run `s2k doctor` (never sends email; exit 0 = ready, 1 = at least one ✗).
 |---|---|
 | ✗ No configuration found … run `s2k init` | Check the prerequisites below with the user, ask them to run `s2k init` in their own terminal and to tell you when it is done |
 | ✗ authentication failed … | The provider needs an app password (Gmail) or an app-specific password (iCloud), not the account password — the error line has the link (see Providers); then `s2k init` again |
-| ✗ could not connect … / does not support a required feature | Wrong server, port or security: `s2k init` again (Gmail: `smtp.gmail.com`, `587`, `starttls`; port 465 needs `ssl`) |
+| ✗ could not connect … / does not support a required feature | Wrong server, port or security: `s2k init` again and pick the provider (Gmail and iCloud are filled in; see Providers); port 465 needs `ssl` |
 | ✗ Invalid configuration … `S2K_…` | `s2k init` again, correcting that value |
 | ✗ Cannot read … | Fix that file's owner or permissions (`ls -l <path>`) |
 | ⚠ Config file is readable by other users | You may run the `chmod 600 <path>` it prints |

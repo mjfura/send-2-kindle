@@ -197,3 +197,34 @@ def test_failed_icloud_download_does_not_stop_other_files(
     assert "could not download it from iCloud (are you offline?)" in result.output
     assert "1 sent, 1 failed" in result.output
     assert _subjects(fake_smtp) == ["local.pdf"]
+
+
+@pytest.mark.usefixtures("valid_env")
+def test_icloud_files_are_downloaded_before_connecting(
+    fake_smtp: FakeSMTPServer, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(main_module, "is_not_downloaded", lambda path: path.name == "cloud.pdf")
+    monkeypatch.setattr(
+        main_module,
+        "_fetch_from_icloud",
+        lambda path: fake_smtp.calls.append(f"download:{path.name}"),
+    )
+    result = runner.invoke(app, _send(_file(tmp_path, "cloud.pdf"), _file(tmp_path, "local.pdf")))
+    assert result.exit_code == 0, result.output
+    assert fake_smtp.calls[0] == "download:cloud.pdf"
+    assert fake_smtp.calls[1].startswith("connect:")
+
+
+@pytest.mark.usefixtures("valid_env")
+def test_failed_download_happens_before_connecting(
+    fake_smtp: FakeSMTPServer, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def fail(path: Path) -> None:
+        raise OSError(errno.ETIMEDOUT, "Operation timed out")
+
+    monkeypatch.setattr(main_module, "is_not_downloaded", lambda path: True)
+    monkeypatch.setattr(main_module, "_fetch_from_icloud", fail)
+    result = runner.invoke(app, _send(_file(tmp_path, "cloud.pdf")))
+    assert result.exit_code == 1
+    assert "could not download it from iCloud (are you offline?)" in result.output
+    assert fake_smtp.calls == []

@@ -23,3 +23,8 @@ def test_provider_for_key() -> None:
 def test_provider_limits_are_below_amazons() -> None:
     for provider in PROVIDERS:
         assert provider.max_file_bytes < constants.MAX_EMAIL_SIZE_BYTES
+
+
+def test_legacy_icloud_hosts_are_recognized() -> None:
+    assert provider_for_host("smtp.me.com") is ICLOUD
+    assert provider_for_host("smtp.mac.com") is ICLOUD
