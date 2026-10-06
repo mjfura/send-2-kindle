@@ -1,0 +1,96 @@
+#!/bin/sh
+# Fake s2k for the plugin evals: never sends email. EVAL_S2K_SCENARIO selects the behaviour
+# (ready | missing | old | no-config | auth-fail); every call is appended to S2K_STUB_LOG.
+scenario="${EVAL_S2K_SCENARIO:-ready}"
+printf 's2k %s\n' "$*" >> "${S2K_STUB_LOG:-./s2k-calls.log}" 2>/dev/null || true
+
+if [ "$scenario" = missing ]; then
+  echo "sh: s2k: command not found" >&2
+  exit 127
+fi
+version=0.1.0
+[ "$scenario" = old ] && version=0.0.9
+note="ℹ Amazon cannot be checked without sending. To confirm end to end: s2k send <small-file.txt>"
+auth_error="authentication failed for reader@gmail.com on smtp.gmail.com. Gmail requires an app password, not your account password: https://myaccount.google.com/apppasswords"
+
+doctor() {
+  echo "✓ s2k $version (Python 3.13.2)"
+  if [ "$scenario" = no-config ]; then
+    echo "✗ No configuration found at ~/.config/s2k/config.env → run \`s2k init\` in your terminal"
+    echo "- Settings (not checked)"
+    echo "- SMTP connection (not checked)"
+    echo "- SMTP login (not checked)"
+    echo "$note"
+    echo "Not ready: 1 problem(s)."
+    return 1
+  fi
+  echo "✓ Config file: ~/.config/s2k/config.env"
+  echo "✓ Settings valid (sender reader@gmail.com → kindle reader@kindle.com)"
+  echo "✓ Connected to smtp.gmail.com:587 (STARTTLS)"
+  if [ "$scenario" = auth-fail ]; then
+    echo "✗ $auth_error"
+    echo "$note"
+    echo "Not ready: 1 problem(s)."
+    return 1
+  fi
+  echo "✓ Logged in as reader@gmail.com"
+  echo "$note"
+  echo "Ready."
+  return 0
+}
+
+reason_for() {  # prints why a file would be rejected, or nothing
+  [ -e "$1" ] || { echo "file not found"; return; }
+  [ -f "$1" ] || { echo "not a regular file"; return; }
+  base=$(basename "$1")
+  case "$base" in
+    *.*) ext=".$(printf '%s' "${base##*.}" | tr '[:upper:]' '[:lower:]')" ;;
+    *) ext="" ;;
+  esac
+  case "$ext" in
+    .pdf|.epub|.doc|.docx|.txt|.rtf|.html|.htm|.jpg|.jpeg|.png|.gif|.bmp) ;;
+    *) echo "unsupported extension '${ext:-(none)}'"; return ;;
+  esac
+  [ -s "$1" ] || echo "file is empty"
+}
+
+send() {
+  if [ $# -eq 0 ]; then
+    echo "Usage: s2k send [OPTIONS] FILES..." >&2
+    echo "Error: Missing argument 'FILES...'." >&2
+    return 2
+  fi
+  if [ "$scenario" = no-config ]; then
+    echo "Invalid configuration (check ~/.config/s2k/config.env or your environment variables):" >&2
+    echo "  S2K_KINDLE_EMAIL: is required" >&2
+    echo "  S2K_SENDER_EMAIL: is required" >&2
+    echo "  S2K_SMTP_PASSWORD: is required" >&2
+    return 2
+  fi
+  [ "$scenario" = auth-fail ] && echo "Error: $auth_error" >&2
+  sent=0 failed=0
+  for file in "$@"; do
+    reason=$(reason_for "$file")
+    if [ -n "$reason" ]; then
+      echo "✗ $file  $reason"; failed=$((failed + 1))
+    elif [ "$scenario" = auth-fail ]; then
+      echo "✗ $file  not sent"; failed=$((failed + 1))
+    else
+      echo "✓ $file  sent"; sent=$((sent + 1))
+    fi
+  done
+  echo "$sent sent, $failed failed"
+  if [ "$sent" -gt 0 ]; then
+    echo "Note: Amazon may still reject a sent file (e.g. sender not approved); it will email you if so."
+  fi
+  return $(( failed > 0 ))
+}
+
+case "${1:-}" in
+  --version) echo "s2k $version" ;;
+  init) echo "s2k init is interactive; run it in your own terminal." >&2; exit 2 ;;
+  doctor) doctor; exit $? ;;
+  send) shift; send "$@"; exit $? ;;
+  ""|--help|-h) echo "Usage: s2k [OPTIONS] COMMAND [ARGS]...  Commands: send, doctor, init" ;;
+  *) echo "Error: No such command '$1'." >&2; exit 2 ;;
+esac

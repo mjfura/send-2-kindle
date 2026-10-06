@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: kindle-asks-kindle-model-first-time
+context:
+  scaffold_script: fixture.sh
