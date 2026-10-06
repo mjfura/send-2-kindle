@@ -8,8 +8,8 @@ from dotenv import dotenv_values
 from pydantic import EmailStr, Field, SecretStr, ValidationError, field_validator
 from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, SettingsConfigDict
 
-from send_2_kindle import constants
 from send_2_kindle.errors import ConfigError
+from send_2_kindle.providers import GMAIL
 
 ENV_PREFIX: Final[str] = "S2K_"
 CONFIG_FILE_VARIABLE: Final[str] = "S2K_CONFIG_FILE"
@@ -49,7 +49,7 @@ class Settings(BaseSettings):
     kindle_email: EmailStr
     sender_email: EmailStr
     smtp_password: SecretStr
-    smtp_host: SmtpHost = constants.GMAIL_SMTP_HOST
+    smtp_host: SmtpHost = GMAIL.host
     smtp_port: SmtpPort = 587
     smtp_security: SmtpSecurity = "starttls"
     smtp_username: str | None = None

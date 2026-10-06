@@ -9,7 +9,6 @@ from typing import Any
 import typer
 from pydantic import EmailStr, TypeAdapter, ValidationError
 
-from send_2_kindle import constants
 from send_2_kindle.config import (
     SmtpHost,
     SmtpPort,
@@ -18,6 +17,7 @@ from send_2_kindle.config import (
     read_config_file,
 )
 from send_2_kindle.doctor import report, run_checks
+from send_2_kindle.providers import GMAIL
 
 INTRO = """\
 s2k init: configure Send to Kindle by email.
@@ -107,9 +107,7 @@ def _collect(current: dict[str, str]) -> dict[str, str]:
     values = {
         "S2K_KINDLE_EMAIL": _ask("Send to Kindle address", _EMAIL, current.get("S2K_KINDLE_EMAIL")),
         "S2K_SENDER_EMAIL": _ask("Email you send from", _EMAIL, current.get("S2K_SENDER_EMAIL")),
-        "S2K_SMTP_HOST": _ask(
-            "SMTP server", _HOST, current.get("S2K_SMTP_HOST", constants.GMAIL_SMTP_HOST)
-        ),
+        "S2K_SMTP_HOST": _ask("SMTP server", _HOST, current.get("S2K_SMTP_HOST", GMAIL.host)),
         "S2K_SMTP_PORT": _ask("SMTP port", _PORT, current.get("S2K_SMTP_PORT", "587")),
         "S2K_SMTP_SECURITY": _ask(
             "Security (starttls/ssl)", _SECURITY, current.get("S2K_SMTP_SECURITY", "starttls")
@@ -130,7 +128,7 @@ def run_wizard() -> int:
         )
         return 2
     path = config_file_path()
-    typer.echo(INTRO.format(url=constants.GMAIL_APP_PASSWORDS_URL))
+    typer.echo(INTRO.format(url=GMAIL.password_url))
     try:
         values = _collect(_read_existing(path))
     except typer.Abort:

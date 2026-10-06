@@ -14,6 +14,3 @@ ALLOWED_EXTENSIONS: Final[frozenset[str]] = frozenset(
 MAX_EMAIL_SIZE_BYTES: Final[int] = 50_000_000
 
 SMTP_TIMEOUT_SECONDS: Final[float] = 30.0
-
-GMAIL_SMTP_HOST: Final[str] = "smtp.gmail.com"
-GMAIL_APP_PASSWORDS_URL: Final[str] = "https://myaccount.google.com/apppasswords"
