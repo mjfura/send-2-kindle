@@ -24,8 +24,11 @@ jobs:
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        shell: bash
         run: |
-          if git diff --name-only "$BASE_SHA...$HEAD_SHA" | grep -qE '^(plugin/|\.claude-plugin/|cli/pyproject\.toml$|\.github/scripts/|\.github/workflows/plugin\.yml$)'; then
+          # A failing git diff must fail the job, never skip the checks of a required status.
+          changed=$(git diff --name-only "$BASE_SHA...$HEAD_SHA")
+          if grep -qE '^(plugin/|\.claude-plugin/|cli/pyproject\.toml$|\.github/scripts/|\.github/workflows/plugin\.yml$)' <<< "$changed"; then
             echo "run=true" >> "$GITHUB_OUTPUT"
           else
             echo "run=false" >> "$GITHUB_OUTPUT"
