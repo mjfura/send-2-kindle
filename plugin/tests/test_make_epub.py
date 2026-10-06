@@ -153,6 +153,40 @@ class MakeEpubTest(unittest.TestCase):
         self.assertEqual(make_epub.main(["--title", "T", "--author", "A", "--output", output, chapter]), 0)
         self.assertEqual(make_epub.main(["--title", "T", "--author", "A", "--output", output, chapter]), 0)
 
+    def _body(self, html: str) -> str:
+        chapter = self._build([self._chapter("b.html", "<h1>T</h1>" + html)]).read("OEBPS/chapter-001.xhtml")
+        return chapter.decode()
+
+    def test_implicitly_closed_list_items_and_paragraphs(self) -> None:
+        body = self._body("<ul><li>a<li>b</ul><p>one<p>two<p>three<div>block</div>")
+        self.assertIn("<ul><li>a</li><li>b</li></ul>", body)
+        self.assertIn("<p>one</p><p>two</p><p>three</p><div>block</div>", body)
+
+    def test_nested_links_are_not_produced(self) -> None:
+        body = self._body('<p><a href="https://a.example">one<a href="https://b.example">two</a></p>')
+        self.assertIn('<a href="https://a.example">one</a><a href="https://b.example">two</a>', body)
+
+    def test_empty_h1_does_not_duplicate_the_title(self) -> None:
+        chapter = self._build([self._chapter("notes.html", "<h1> </h1><p>x</p>")]).read("OEBPS/chapter-001.xhtml")
+        self.assertEqual(chapter.decode().count("<h1>"), 1)
+
+    def test_xmp_content_is_literal_text(self) -> None:
+        body = self._body("<xmp><b>not bold</b></xmp>")
+        self.assertIn("<pre>&lt;b&gt;not bold&lt;/b&gt;</pre>", body)
+
+    def test_invalid_language_exits_2(self) -> None:
+        chapter = str(self._chapter("x.html", "<h1>X</h1>"))
+        code = make_epub.main(["--title", "T", "--author", "A", "--output", str(self.dir / "o.epub"),
+                               "--language", 'en" x="', chapter])
+        self.assertEqual(code, 2)
+
+    def test_blank_title_or_author_exits_2(self) -> None:
+        chapter = str(self._chapter("x.html", "<h1>X</h1>"))
+        for title, author in (("  ", "A"), ("T", "")):
+            code = make_epub.main(["--title", title, "--author", author,
+                                   "--output", str(self.dir / "o.epub"), chapter])
+            self.assertEqual(code, 2)
+
     def test_cover_is_optional(self) -> None:
         without = self._build(self._two_chapters())
         self.assertNotIn("OEBPS/cover.xhtml", without.namelist())
