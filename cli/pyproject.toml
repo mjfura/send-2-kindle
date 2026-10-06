@@ -1,6 +1,6 @@
 [project]
 name = "s2k-cli"
-version = "0.2.0"
+version = "0.3.0"
 description = "Send local files to your Kindle from the command line."
 authors = [{ name = "Marco Fura", email = "mjfura27@gmail.com" }]
 readme = "README.md"
