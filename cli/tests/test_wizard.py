@@ -1,3 +1,4 @@
+import os
 import stat
 from pathlib import Path
 
@@ -119,7 +120,7 @@ def test_existing_values_are_defaults_and_empty_password_keeps_it(isolated_env: 
 
 @pytest.mark.usefixtures("interactive")
 def test_password_with_special_characters_round_trips(isolated_env: Path) -> None:
-    password = 'p@ss "w0rd" \\ #1 $HOME'
+    password = 'p@ss "w0rd" \\ #1 $HOME ${HOME} ${S2K_X}'
     answers = _answers("reader@kindle.com", "me@gmail.com", "", "", "", password, "n")
     result = runner.invoke(app, ["init"], input=answers)
     assert result.exit_code == 0, result.output
@@ -143,3 +144,21 @@ def test_running_checks_uses_the_doctor_exit_code(
     assert result.exit_code == 0, result.output
     assert "Logged in as me@gmail.com" in result.output
     assert result.output.rstrip().endswith("Ready.")
+
+
+@pytest.mark.skipif(hasattr(os, "geteuid") and os.geteuid() == 0, reason="root can write anywhere")
+@pytest.mark.usefixtures("interactive")
+def test_unwritable_config_location_is_reported(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    locked = tmp_path / "locked"
+    locked.mkdir()
+    monkeypatch.setenv("S2K_CONFIG_FILE", str(locked / "config.env"))
+    locked.chmod(0o500)
+    try:
+        result = runner.invoke(app, ["init"], input=NEW_CONFIG)
+    finally:
+        locked.chmod(0o700)
+    assert result.exit_code == 2
+    assert "Cannot write" in result.output
+    assert not (locked / "config.env").exists()

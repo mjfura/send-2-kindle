@@ -157,3 +157,12 @@ def test_unreadable_config_file_is_a_config_error(isolated_env: Path) -> None:
             load_settings()
     finally:
         isolated_env.chmod(0o600)
+
+
+def test_config_file_values_are_read_literally(
+    isolated_env: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # python-dotenv would expand ${FOO}; a password must come back exactly as written.
+    monkeypatch.setenv("FOO", "EXPANDED")
+    isolated_env.write_text(REQUIRED_FILE_LINES + 'S2K_SMTP_PASSWORD="a${FOO}b${HOME}c"\n')
+    assert load_settings().smtp_password.get_secret_value() == "a${FOO}b${HOME}c"

@@ -7,11 +7,16 @@ from pathlib import Path
 from typing import Any
 
 import typer
-from dotenv import dotenv_values
 from pydantic import EmailStr, TypeAdapter, ValidationError
 
 from send_2_kindle import constants
-from send_2_kindle.config import SmtpHost, SmtpPort, SmtpSecurity, config_file_path
+from send_2_kindle.config import (
+    SmtpHost,
+    SmtpPort,
+    SmtpSecurity,
+    config_file_path,
+    read_config_file,
+)
 from send_2_kindle.doctor import report, run_checks
 
 INTRO = """\
@@ -57,10 +62,9 @@ def write_config(path: Path, values: dict[str, str]) -> None:
 
 def _read_existing(path: Path) -> dict[str, str]:
     try:
-        values = dotenv_values(path, interpolate=False) if path.is_file() else {}
+        return read_config_file(path)
     except OSError:
         return {}
-    return {key: value for key, value in values.items() if value is not None}
 
 
 def _ask(text: str, adapter: TypeAdapter[Any], default: str | None) -> str:
@@ -120,7 +124,13 @@ def run_wizard() -> int:
     except typer.Abort:
         typer.secho("Aborted; configuration not changed.", fg=typer.colors.RED, err=True)
         return 1
-    write_config(path, values)
+    try:
+        write_config(path, values)
+    except OSError as error:
+        typer.secho(
+            f"Cannot write {path}: {error.strerror or error}", fg=typer.colors.RED, err=True
+        )
+        return 2
     typer.echo(f"Saved {path} (permissions 600)")
     try:
         run_now = typer.confirm("Run checks now?", default=True)

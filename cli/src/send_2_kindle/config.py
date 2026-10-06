@@ -2,10 +2,11 @@
 
 import os
 from pathlib import Path
-from typing import Annotated, Final, Literal
+from typing import Annotated, Any, Final, Literal
 
+from dotenv import dotenv_values
 from pydantic import EmailStr, Field, SecretStr, ValidationError, field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, SettingsConfigDict
 
 from send_2_kindle import constants
 from send_2_kindle.errors import ConfigError
@@ -58,10 +59,37 @@ class Settings(BaseSettings):
             raise ValueError("must not be empty")
         return value
 
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: type[BaseSettings],
+        init_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,
+        file_secret_settings: PydanticBaseSettingsSource,
+    ) -> tuple[PydanticBaseSettingsSource, ...]:
+        # Environment variables win; config-file values arrive as init kwargs (see load_settings).
+        return (env_settings, init_settings)
+
     @property
     def login_username(self) -> str:
         """SMTP login: S2K_SMTP_USERNAME, or the sender address when unset or empty."""
         return self.smtp_username or self.sender_email
+
+
+def read_config_file(path: Path) -> dict[str, str]:
+    """Return the S2K_* entries of a config file, read literally (no ${VAR} expansion).
+
+    Raises OSError if the file exists but cannot be read; a missing file gives {}.
+    """
+    if not path.is_file():
+        return {}
+    values = dotenv_values(path, encoding="utf-8", interpolate=False)
+    return {
+        key.upper(): value
+        for key, value in values.items()
+        if value is not None and key.upper().startswith(ENV_PREFIX)
+    }
 
 
 def _describe(error: ValidationError, path: Path) -> str:
@@ -77,7 +105,11 @@ def load_settings() -> Settings:
     """Load settings from the environment and config_file_path(), raising ConfigError if invalid."""
     path = config_file_path()
     try:
-        return Settings(_env_file=path)
+        file_values: dict[str, Any] = {
+            key.removeprefix(ENV_PREFIX).lower(): value
+            for key, value in read_config_file(path).items()
+        }
+        return Settings(**file_values)
     except ValidationError as error:
         raise ConfigError(_describe(error, path)) from None
     except OSError as error:

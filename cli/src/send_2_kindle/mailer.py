@@ -48,6 +48,23 @@ def _close_quietly(smtp: smtplib.SMTP | None) -> None:
         smtp.close()
 
 
+def _login(smtp: smtplib.SMTP, settings: Settings) -> None:
+    """Log in, reporting any other SMTP refusal of the login as an auth error."""
+    try:
+        smtp.login(settings.login_username, settings.smtp_password.get_secret_value())
+    except (
+        smtplib.SMTPAuthenticationError,
+        smtplib.SMTPNotSupportedError,
+        smtplib.SMTPServerDisconnected,
+    ):
+        raise
+    except smtplib.SMTPException as error:
+        _close_quietly(smtp)
+        raise SmtpAuthError(
+            f"login failed for {settings.login_username} on {settings.smtp_host}: {error}"
+        ) from error
+
+
 class KindleMailer:
     """One authenticated SMTP session that sends one email per file.
 
@@ -76,7 +93,7 @@ class KindleMailer:
                     timeout=constants.SMTP_TIMEOUT_SECONDS,
                 )
                 smtp.starttls(context=ssl.create_default_context())
-            smtp.login(settings.login_username, settings.smtp_password.get_secret_value())
+            _login(smtp, settings)
         except smtplib.SMTPAuthenticationError as error:
             _close_quietly(smtp)
             raise SmtpAuthError(_auth_failure_message(settings)) from error
