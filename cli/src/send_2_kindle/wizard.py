@@ -4,7 +4,7 @@ import os
 import sys
 import tempfile
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import typer
 from pydantic import EmailStr, TypeAdapter, ValidationError
@@ -17,7 +17,7 @@ from send_2_kindle.config import (
     read_config_file,
 )
 from send_2_kindle.doctor import report, run_checks
-from send_2_kindle.providers import GMAIL
+from send_2_kindle.providers import GMAIL, PROVIDERS, provider_for_host, provider_for_key
 
 INTRO = """\
 s2k init: configure Send to Kindle by email.
@@ -26,14 +26,19 @@ You will need:
   - Your Send to Kindle address: Amazon > Manage Your Content and Devices > Preferences >
     Personal Document Settings.
   - The email you send from must be on the "Approved Personal Document E-mail List" (same page).
-  - Gmail: an app password, not your account password: {url}
+{passwords}
 """
+PASSWORD_LINES = "\n".join(
+    f"  - {p.name}: an {p.password_name}, not your account password: {p.password_url}"
+    for p in PROVIDERS
+)
 HEADER = "# s2k configuration, written by `s2k init`. Keep it private (chmod 600).\n"
 
 _EMAIL: TypeAdapter[Any] = TypeAdapter(EmailStr)
 _HOST: TypeAdapter[Any] = TypeAdapter(SmtpHost)
 _PORT: TypeAdapter[Any] = TypeAdapter(SmtpPort)
 _SECURITY: TypeAdapter[Any] = TypeAdapter(SmtpSecurity)
+_PROVIDER: TypeAdapter[Any] = TypeAdapter(Literal["gmail", "icloud", "other"])
 
 
 def _is_interactive() -> bool:
@@ -104,15 +109,33 @@ def _ask_password(has_current: bool) -> str | None:
 
 
 def _collect(current: dict[str, str]) -> dict[str, str]:
+    existing_host = current.get("S2K_SMTP_HOST")
+    known = provider_for_host(existing_host) if existing_host else GMAIL
+    provider = provider_for_key(
+        _ask("Email provider (gmail/icloud/other)", _PROVIDER, known.key if known else "other")
+    )
+    sender_label = "Email you send from"
+    if provider is not None and provider.key == "icloud":
+        sender_label += " (your iCloud Mail address, e.g. name@icloud.com)"
     values = {
         "S2K_KINDLE_EMAIL": _ask("Send to Kindle address", _EMAIL, current.get("S2K_KINDLE_EMAIL")),
-        "S2K_SENDER_EMAIL": _ask("Email you send from", _EMAIL, current.get("S2K_SENDER_EMAIL")),
-        "S2K_SMTP_HOST": _ask("SMTP server", _HOST, current.get("S2K_SMTP_HOST", GMAIL.host)),
-        "S2K_SMTP_PORT": _ask("SMTP port", _PORT, current.get("S2K_SMTP_PORT", "587")),
-        "S2K_SMTP_SECURITY": _ask(
-            "Security (starttls/ssl)", _SECURITY, current.get("S2K_SMTP_SECURITY", "starttls")
-        ),
+        "S2K_SENDER_EMAIL": _ask(sender_label, _EMAIL, current.get("S2K_SENDER_EMAIL")),
     }
+    if provider is not None:
+        values |= {
+            "S2K_SMTP_HOST": provider.host,
+            "S2K_SMTP_PORT": str(provider.port),
+            "S2K_SMTP_SECURITY": provider.security,
+        }
+        typer.echo(f"  {provider.name} needs an {provider.password_name}: {provider.password_url}")
+    else:
+        values |= {
+            "S2K_SMTP_HOST": _ask("SMTP server", _HOST, current.get("S2K_SMTP_HOST", GMAIL.host)),
+            "S2K_SMTP_PORT": _ask("SMTP port", _PORT, current.get("S2K_SMTP_PORT", "587")),
+            "S2K_SMTP_SECURITY": _ask(
+                "Security (starttls/ssl)", _SECURITY, current.get("S2K_SMTP_SECURITY", "starttls")
+            ),
+        }
     password = _ask_password(bool(current.get("S2K_SMTP_PASSWORD")))
     values["S2K_SMTP_PASSWORD"] = password if password is not None else current["S2K_SMTP_PASSWORD"]
     if current.get("S2K_SMTP_USERNAME"):
@@ -128,7 +151,7 @@ def run_wizard() -> int:
         )
         return 2
     path = config_file_path()
-    typer.echo(INTRO.format(url=GMAIL.password_url))
+    typer.echo(INTRO.format(passwords=PASSWORD_LINES))
     try:
         values = _collect(_read_existing(path))
     except typer.Abort:
