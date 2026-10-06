@@ -6,6 +6,7 @@ from typing import Annotated
 
 import typer
 
+from send_2_kindle import installed_version
 from send_2_kindle.config import load_settings
 from send_2_kindle.errors import (
     ConfigError,
@@ -22,7 +23,25 @@ AMAZON_NOTE = (
 )
 
 # Never show local variables in tracebacks: they could include the SMTP password.
-app = typer.Typer(add_completion=False, pretty_exceptions_show_locals=False)
+app = typer.Typer(add_completion=False, pretty_exceptions_show_locals=False, no_args_is_help=True)
+
+
+def _print_version(value: bool) -> None:
+    if value:
+        typer.echo(f"s2k {installed_version()}")
+        raise typer.Exit()
+
+
+@app.callback()
+def cli(
+    version: Annotated[
+        bool,
+        typer.Option(
+            "--version", callback=_print_version, is_eager=True, help="Show the version and exit."
+        ),
+    ] = False,
+) -> None:
+    """Send local files to your Kindle through the Send to Kindle email service."""
 
 
 @dataclass
@@ -33,13 +52,13 @@ class Outcome:
 
 
 @app.command()
-def main(
+def send(
     files: Annotated[
         list[Path],
         typer.Argument(help="Files to send (pdf, epub, docx, txt, ...).", show_default=False),
     ],
 ) -> None:
-    """Send local files to your Kindle through the Send to Kindle email service."""
+    """Send files to your Kindle, one email per file."""
     try:
         settings = load_settings()
     except ConfigError as error:
