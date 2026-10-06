@@ -191,3 +191,29 @@ def test_other_login_failures_are_auth_errors(
     with pytest.raises(SmtpAuthError, match="login failed"), KindleMailer(settings):
         pass
     assert "close" in fake_smtp.calls
+
+
+@pytest.mark.usefixtures("valid_env")
+def test_starttls_on_port_465_gets_a_hint(
+    fake_smtp: FakeSMTPServer, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("S2K_SMTP_PORT", "465")
+    fake_smtp.connect_error = TimeoutError("timed out")
+    with (
+        pytest.raises(SmtpConnectionError, match="S2K_SMTP_SECURITY=ssl"),
+        KindleMailer(load_settings()),
+    ):
+        pass
+
+
+@pytest.mark.usefixtures("valid_env")
+def test_ssl_on_port_587_gets_a_hint(
+    fake_smtp: FakeSMTPServer, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("S2K_SMTP_SECURITY", "ssl")
+    fake_smtp.connect_error = ConnectionResetError("reset")
+    with (
+        pytest.raises(SmtpConnectionError, match="S2K_SMTP_SECURITY=starttls"),
+        KindleMailer(load_settings()),
+    ):
+        pass

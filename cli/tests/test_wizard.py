@@ -20,7 +20,7 @@ def _answers(*lines: str) -> str:
 
 
 # kindle, sender, host, port, security, password, "run checks now?"
-NEW_CONFIG = _answers("reader@kindle.com", "me@gmail.com", "", "", "", PASSWORD, "n")
+NEW_CONFIG = _answers("reader@kindle.com", "me@gmail.com", "", "", "", PASSWORD, PASSWORD, "n")
 
 
 @pytest.fixture
@@ -70,7 +70,7 @@ def test_creates_missing_directory_with_private_permissions(
 @pytest.mark.usefixtures("interactive")
 def test_invalid_email_is_asked_again(isolated_env: Path) -> None:
     answers = _answers(
-        "not-an-email", "reader@kindle.com", "me@gmail.com", "", "", "", PASSWORD, "n"
+        "not-an-email", "reader@kindle.com", "me@gmail.com", "", "", "", PASSWORD, PASSWORD, "n"
     )
     result = runner.invoke(app, ["init"], input=answers)
     assert result.exit_code == 0, result.output
@@ -81,7 +81,7 @@ def test_invalid_email_is_asked_again(isolated_env: Path) -> None:
 @pytest.mark.usefixtures("interactive")
 def test_invalid_port_is_asked_again(isolated_env: Path) -> None:
     answers = _answers(
-        "reader@kindle.com", "me@gmail.com", "", "70000", "465", "ssl", PASSWORD, "n"
+        "reader@kindle.com", "me@gmail.com", "", "70000", "465", "ssl", PASSWORD, PASSWORD, "n"
     )
     result = runner.invoke(app, ["init"], input=answers)
     assert result.exit_code == 0, result.output
@@ -121,7 +121,7 @@ def test_existing_values_are_defaults_and_empty_password_keeps_it(isolated_env: 
 @pytest.mark.usefixtures("interactive")
 def test_password_with_special_characters_round_trips(isolated_env: Path) -> None:
     password = 'p@ss "w0rd" \\ #1 $HOME ${HOME} ${S2K_X}'
-    answers = _answers("reader@kindle.com", "me@gmail.com", "", "", "", password, "n")
+    answers = _answers("reader@kindle.com", "me@gmail.com", "", "", "", password, password, "n")
     result = runner.invoke(app, ["init"], input=answers)
     assert result.exit_code == 0, result.output
     assert load_settings().smtp_password.get_secret_value() == password
@@ -139,7 +139,7 @@ def test_abort_writes_nothing(isolated_env: Path) -> None:
 def test_running_checks_uses_the_doctor_exit_code(
     isolated_env: Path, fake_smtp: FakeSMTPServer
 ) -> None:
-    answers = _answers("reader@kindle.com", "me@gmail.com", "", "", "", PASSWORD, "y")
+    answers = _answers("reader@kindle.com", "me@gmail.com", "", "", "", PASSWORD, PASSWORD, "y")
     result = runner.invoke(app, ["init"], input=answers)
     assert result.exit_code == 0, result.output
     assert "Logged in as me@gmail.com" in result.output
@@ -162,3 +162,36 @@ def test_unwritable_config_location_is_reported(
     assert result.exit_code == 2
     assert "Cannot write" in result.output
     assert not (locked / "config.env").exists()
+
+
+@pytest.mark.usefixtures("interactive")
+def test_mismatched_password_is_asked_again(isolated_env: Path) -> None:
+    answers = _answers(
+        "reader@kindle.com",
+        "me@gmail.com",
+        "",
+        "",
+        "",
+        "first try",
+        "typo",
+        PASSWORD,
+        PASSWORD,
+        "n",
+    )
+    result = runner.invoke(app, ["init"], input=answers)
+    assert result.exit_code == 0, result.output
+    assert "do not match" in result.output
+    assert load_settings().smtp_password.get_secret_value() == PASSWORD
+
+
+def test_write_config_keeps_a_symlinked_config_file(tmp_path: Path) -> None:
+    real = tmp_path / "dotfiles" / "s2k.env"
+    real.parent.mkdir()
+    real.write_text("old\n")
+    link = tmp_path / "config" / "s2k" / "config.env"
+    link.parent.mkdir(parents=True)
+    link.symlink_to(real)
+    wizard.write_config(link, {"S2K_KINDLE_EMAIL": "reader@kindle.com"})
+    assert link.is_symlink()
+    assert "S2K_KINDLE_EMAIL" in real.read_text()
+    assert _mode(real) == 0o600
