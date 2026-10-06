@@ -64,3 +64,12 @@ jobs:
         if: steps.changes.outputs.run == 'true'
         working-directory: cli
         run: poetry run pytest
+
+      - name: Build and smoke-test the package
+        if: steps.changes.outputs.run == 'true'
+        working-directory: cli
+        run: |
+          poetry build
+          python3.13 -m venv /tmp/s2k-smoke
+          /tmp/s2k-smoke/bin/pip install dist/*.whl
+          /tmp/s2k-smoke/bin/s2k --version

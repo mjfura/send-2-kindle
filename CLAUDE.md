@@ -15,6 +15,7 @@ branch, commit, push, PR, merge, tag or release operation. Key rules:
 
 ## CLI (`cli/`)
 
-Python 3.13 + Poetry project; virtualenv in `cli/.venv`. Design: `docs/superpowers/specs/2026-10-05-s2k-cli-design.md`.
+Python 3.13 + Poetry project published to PyPI as `s2k-cli` (command `s2k`); virtualenv in `cli/.venv`.
+Designs: `docs/superpowers/specs/2026-10-05-s2k-cli-design.md`, `docs/superpowers/specs/2026-10-05-s2k-cli-distribution-design.md`. Releases: `docs/releasing.md`.
 Run from `cli/` before every commit: `poetry run ruff check . && poetry run ruff format --check . && poetry run mypy src tests && poetry run pytest`.
-Tests must never send real email or read the real `cli/.env`.
+Tests must never send real email or read the real user config. Never ask the user for their SMTP password: they run `s2k init` themselves.

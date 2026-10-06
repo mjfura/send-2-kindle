@@ -182,3 +182,12 @@ def test_server_without_required_feature_is_reported_as_such(
     with pytest.raises(SmtpConnectionError, match="does not support"), KindleMailer(settings):
         pass
     assert "close" in fake_smtp.calls
+
+
+def test_other_login_failures_are_auth_errors(
+    settings: Settings, fake_smtp: FakeSMTPServer
+) -> None:
+    fake_smtp.login_error = smtplib.SMTPException("No suitable authentication method found.")
+    with pytest.raises(SmtpAuthError, match="login failed"), KindleMailer(settings):
+        pass
+    assert "close" in fake_smtp.calls

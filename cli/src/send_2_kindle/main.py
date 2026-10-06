@@ -6,7 +6,9 @@ from typing import Annotated
 
 import typer
 
+from send_2_kindle import installed_version
 from send_2_kindle.config import load_settings
+from send_2_kindle.doctor import report, run_checks
 from send_2_kindle.errors import (
     ConfigError,
     FileValidationError,
@@ -16,13 +18,32 @@ from send_2_kindle.errors import (
 )
 from send_2_kindle.mailer import KindleMailer
 from send_2_kindle.validation import validate_file
+from send_2_kindle.wizard import run_wizard
 
 AMAZON_NOTE = (
     "Note: Amazon may still reject a sent file (e.g. sender not approved); it will email you if so."
 )
 
 # Never show local variables in tracebacks: they could include the SMTP password.
-app = typer.Typer(add_completion=False, pretty_exceptions_show_locals=False)
+app = typer.Typer(add_completion=False, pretty_exceptions_show_locals=False, no_args_is_help=True)
+
+
+def _print_version(value: bool) -> None:
+    if value:
+        typer.echo(f"s2k {installed_version()}")
+        raise typer.Exit()
+
+
+@app.callback()
+def cli(
+    version: Annotated[
+        bool,
+        typer.Option(
+            "--version", callback=_print_version, is_eager=True, help="Show the version and exit."
+        ),
+    ] = False,
+) -> None:
+    """Send local files to your Kindle through the Send to Kindle email service."""
 
 
 @dataclass
@@ -33,13 +54,13 @@ class Outcome:
 
 
 @app.command()
-def main(
+def send(
     files: Annotated[
         list[Path],
         typer.Argument(help="Files to send (pdf, epub, docx, txt, ...).", show_default=False),
     ],
 ) -> None:
-    """Send local files to your Kindle through the Send to Kindle email service."""
+    """Send files to your Kindle, one email per file."""
     try:
         settings = load_settings()
     except ConfigError as error:
@@ -72,6 +93,18 @@ def main(
     _print_report(outcomes)
     if not all(outcome.sent for outcome in outcomes):
         raise typer.Exit(code=1)
+
+
+@app.command()
+def doctor() -> None:
+    """Check that s2k is configured and can log in to your SMTP server (sends nothing)."""
+    raise typer.Exit(code=report(run_checks()))
+
+
+@app.command()
+def init() -> None:
+    """Interactive setup that writes your config file. Run it in your own terminal."""
+    raise typer.Exit(code=run_wizard())
 
 
 def _print_report(outcomes: list[Outcome]) -> None:
